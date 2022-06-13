@@ -2,10 +2,10 @@ function h = represent_turn(s,run,track,i_start,i_end,title,color,theta_circuit,
 
 h = figure;
 screen_size = get(0,'ScreenSize');
-h.Position = [0 0 screen_size(4) screen_size(4)];
+h.Position = [0 0 1.1*screen_size(4) screen_size(4)];
 h.Color = background_color;
 % (1) Title
-annotation('textbox',[0.0,0.95,1.0,0.03],'string',title,'FontSize',20,...
+annotation('textbox',[0.0,0.95,1.0,0.03],'string',title,'FontSize',30,...
     'FontName','Formula1','interpreter','none','HorizontalAlignment','center','VerticalAlignment','middle',...
     'LineStyle','none','FontWeight','bold','Margin',0,'FitBoxtoText','on','Color',text_color);
 
@@ -29,17 +29,22 @@ represent_full_circuit(s,run{1},track,i_start,i_end,color{1},theta_circuit, back
 
 % (8) Represent FL logo
 ax_logo = axes('Position',[0.01,0.93,0.06,0.06]);
-imagesc(imread('logo.jpg'));
+[im,~,al] = imread('logo.png');
+h_im = imagesc(im);
+h_im.AlphaData = al;
+
 
 % (9) Represent engine energy
 represent_engine_energy(s,run,track,i_start,i_end,color, background_color, text_color);
 
 % (10) Represent tires energies
-represent_tire_energy(s,run,track,i_start,i_end,color, background_color, text_color);
+%represent_tire_energy(s,run,track,i_start,i_end,color, background_color, text_color);
 
 % (11) Represent time delta
 represent_time_delta(s,run,track,i_start,i_end,color, background_color, text_color);
 
+% (12) Represent distance to centerline
+represent_distance_centerline(s,run,track,i_start,i_end,color, background_color, text_color);
 ax_logo.Visible = 'off';
 end
 
@@ -48,7 +53,7 @@ dt = 0.5;
 time_start = run{1}.time(i_start);
 time_end   = run{1}.time(i_end);
 
-ax = axes('Position', compute_position(6,1,5,1));
+ax = axes('Position', compute_position(6-3,1,5,1));
 ax.Color = background_color;
 plot(run{1}.x(i_start:i_end),-run{1}.y(i_start:i_end))
 
@@ -90,7 +95,7 @@ end
 
 function ax = represent_speed(s,run,track,i_start,i_end, color, background_color, text_color)
 
-position = compute_position(7,2,1,1);
+position = compute_position(7-3,2,1,1);
 ax_position = position;
 ax = axes('Position', ax_position);
 ax.Color = background_color;
@@ -129,7 +134,7 @@ end
 
 function ax = represent_steering(s,run,track,i_start,i_end, color, background_color, text_color)
 
-position = compute_position(8,2,1,1);
+position = compute_position(8-3,2,1,1);
 ax_position = position;
 ax = axes('Position', ax_position);
 ax.Color = background_color;
@@ -153,20 +158,71 @@ annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_positi
     'LineStyle','none','FontWeight','bold','Margin',0,'FitBoxtoText','on','Color',text_color);
 end
 
-function ax = represent_engine_energy(s,run,track,i_start,i_end, color, background_color, text_color)
+function ax = represent_distance_centerline(s,run,track,i_start,i_end, color, background_color, text_color)
 
-position = compute_position(5,1,1,1);
+position = compute_position(4-3,2,1,1);
 ax_position = position;
 ax = axes('Position', ax_position);
 ax.Color = background_color;
 ax.GridColor = text_color; ax.XColor = text_color; ax.YColor = text_color;
 hold on;
 for i = 1 : numel(run)
+    run_i = run{i};
+    plot(s(i_start:i_end)-s(i_start),run_i.n(i_start:i_end),'LineWidth',2,'Color',color{i});
+end
+grid on
+box on
+xlim([0,s(i_end)-s(i_start)]);
+ax.LineWidth = 1.5;
+
+for i = 1 : numel(ax.XTickLabel)
+    ax.XTickLabel{i} = [ax.XTickLabel{i},'m'];
+end
+
+ax.XMinorTick = 'on';
+ax.YMinorTick = 'on';
+
+ax.YTick = [-5,0,5];
+
+for i = 1 : numel(ax.YTickLabel)
+    if str2num(ax.YTickLabel{i}) > 0
+        ax.YTickLabel{i} = [ax.YTickLabel{i},'m right']; 
+    elseif str2num(ax.YTickLabel{i}) < 0
+        ax.YTickLabel{i} = [num2str(-str2num(ax.YTickLabel{i})),'m left ']; 
+    else
+        ax.YTickLabel{i} = [ax.YTickLabel{i},'m      ']; 
+    end
+        
+end
+
+
+
+annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_position(3),0.03],'string','Distance to centerline [m]','FontSize',10,...
+    'FontName','Formula1','interpreter','none','HorizontalAlignment','center','VerticalAlignment','middle',...
+    'LineStyle','none','FontWeight','bold','Margin',0,'FitBoxtoText','on','Color',text_color);
+end
+
+function ax = represent_engine_energy(s,run,track,i_start,i_end, color, background_color, text_color)
+
+position = compute_position(5-3,1,1,1);
+ax_position = position;
+ax = axes('Position', ax_position);
+ax.Color = background_color;
+ax.GridColor = text_color; ax.XColor = text_color; ax.YColor = text_color;
+hold on;
+total_energy = 0.0;
+
+for i = 1 : numel(run)
+    throttle = max(0,run{i}.throttle);
+    total_energy = max(total_energy,trapz(run{i}.time, throttle*run{i}.engine_power));
+end
+
+for i = 1 : numel(run)
     throttle = max(0,run{i}.throttle(i_start:i_end));
     
     engine_energy = cumtrapz(run{i}.time(i_start:i_end), throttle*run{i}.engine_power);
     
-    plot(s(i_start:i_end)-s(i_start),1.0e-3*engine_energy,'LineWidth',2,'Color',color{i});
+    plot(s(i_start:i_end)-s(i_start),100*engine_energy/total_energy,'LineWidth',2,'Color',color{i});
 end
 grid on
 box on
@@ -177,7 +233,42 @@ ax.XTickLabel = {};
 ax.XMinorTick = 'on';
 ax.YMinorTick = 'on';
 
-annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_position(3),0.03],'string','Engine energy [MJ]','FontSize',10,...
+annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_position(3),0.03],'string','Engine energy [% w.r.t. total lap energy]','FontSize',10,...
+    'FontName','Formula1','interpreter','none','HorizontalAlignment','center','VerticalAlignment','middle',...
+    'LineStyle','none','FontWeight','bold','Margin',0,'FitBoxtoText','on','Color',text_color);
+
+% Represent difference
+position = compute_position(4-3,1,1,1);
+ax_position = position;
+ax = axes('Position', ax_position);
+ax.Color = background_color;
+ax.GridColor = text_color; ax.XColor = text_color; ax.YColor = text_color;
+hold on;
+
+throttle_1 = max(0,run{1}.throttle(i_start:i_end));
+engine_energy_1 = cumtrapz(run{1}.time(i_start:i_end), throttle_1*run{1}.engine_power);
+plot(s(i_start:i_end)-s(i_start),zeros(1,i_end-i_start+1),'LineWidth',2,'Color',color{1});
+
+for i = 2 : numel(run)
+    throttle = max(0,run{i}.throttle(i_start:i_end));
+    
+    engine_energy = cumtrapz(run{i}.time(i_start:i_end), throttle*run{i}.engine_power);
+    
+    plot(s(i_start:i_end)-s(i_start),100*(engine_energy-engine_energy_1)/total_energy,'LineWidth',2,'Color',color{i});
+end
+grid on
+box on
+xlim([0,s(i_end)-s(i_start)]);
+ax.LineWidth = 1.5;
+
+for i = 1 : numel(ax.XTickLabel)
+    ax.XTickLabel{i} = [ax.XTickLabel{i},'m'];
+end
+
+ax.XMinorTick = 'on';
+ax.YMinorTick = 'on';
+
+annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_position(3),0.03],'string','Engine energy delta [% w.r.t. total lap energy]','FontSize',10,...
     'FontName','Formula1','interpreter','none','HorizontalAlignment','center','VerticalAlignment','middle',...
     'LineStyle','none','FontWeight','bold','Margin',0,'FitBoxtoText','on','Color',text_color);
 end
@@ -193,7 +284,7 @@ for i = 2 : numel(run)
     run{i}.energy_rl(i_end)-run{i}.energy_rl(i_start),run{i}.energy_rr(i_end)-run{i}.energy_rr(i_start)]));
 end
 % Front left
-ax_position = compute_position(4,1,1,1);
+ax_position = compute_position(4-3,1,1,1);
 ax = axes('Position', ax_position);
 ax.Color = background_color;
 ax.GridColor = text_color; ax.XColor = text_color; ax.YColor = text_color;
@@ -216,7 +307,7 @@ annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_positi
 
 
 % Front right
-ax_position = compute_position(4,2,1,1);
+ax_position = compute_position(4-3,2,1,1);
 ax = axes('Position', ax_position);
 ax.Color = background_color;
 ax.GridColor = text_color; ax.XColor = text_color; ax.YColor = text_color;
@@ -238,7 +329,7 @@ annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_positi
     'LineStyle','none','FontWeight','bold','Margin',0,'FitBoxtoText','on','Color',text_color);
 
 % Rear left
-ax_position = compute_position(3,1,1,1);
+ax_position = compute_position(3-3,1,1,1);
 ax = axes('Position', ax_position);
 ax.Color = background_color;
 ax.GridColor = text_color; ax.XColor = text_color; ax.YColor = text_color;
@@ -263,7 +354,7 @@ annotation('textbox',[ax_position(1),ax_position(2)+0.9*ax_position(4),ax_positi
     'LineStyle','none','FontWeight','bold','Margin',0,'FitBoxtoText','on','Color',text_color);
 
 % Rear right
-ax_position = compute_position(3,2,1,1);
+ax_position = compute_position(3-3,2,1,1);
 ax = axes('Position', ax_position);
 ax.Color = background_color;
 ax.GridColor = text_color; ax.XColor = text_color; ax.YColor = text_color;
@@ -289,7 +380,7 @@ end
 
 function ax = represent_throttle_and_brake_contour(s,run,track,i_start,i_end, color, background_color, text_color)
 
-ax_position = compute_position(6,2,1,1);
+ax_position = compute_position(6-3,2,1,1);
 
 ax = axes('Position', ax_position);
 ax.Color = background_color;
@@ -329,7 +420,7 @@ end
 
 function ax = represent_throttle_and_brake(s,run,track,i_start,i_end, color, background_color, text_color)
 
-ax_position = compute_position(6,2,1,1);
+ax_position = compute_position(6-3,2,1,1);
 
 ax = axes('Position', ax_position);
 ax.Color = background_color;
@@ -345,11 +436,15 @@ xlim([0,s(i_end)-s(i_start)]);
 grid on
 box on
 
+YTickSave = ax.YTick;
+
 ax.LineWidth = 1.5;
 
 for i = 1:numel(ax.YTickLabel)
     ax.YTickLabel{i} = [ax.YTickLabel{i},'%'];
 end
+
+ax.YTick = YTickSave;
 
 ax.XTickLabel = {};
 ax.XMinorTick = 'on';
@@ -363,7 +458,7 @@ end
 
 function ax = represent_acceleration(s,run,track,i_start,i_end, color, background_color, text_color)
 
-ax_position = compute_position(9,2,2,1);
+ax_position = compute_position(9-3,2,2,1);
 ax_position(1) = ax_position(1) + 0.52*ax_position(3);
 ax_position(3) = 0.48*ax_position(3);
 
@@ -388,6 +483,12 @@ for i = 1 : numel(run)
     max_ay = max(max_ay,max(abs(ay_data)));
 end
 
+ax.XTick = [-5,0,5];
+ax.XTickLabel = {'-5g','0g','+5g'};
+ax.YTick = [-5,0,5];
+ax.YTickLabel = {'-5g','0g','+5g'};
+
+
 max_ax = ceil(max_ax);
 max_ay = ceil(max_ay);
 
@@ -410,7 +511,7 @@ end
 
 function ax = represent_full_circuit(s,run,track,i_start,i_end, color, theta, background_color, text_color)
 
-ax_position = compute_position(9,2,2,1);
+ax_position = compute_position(9-3,2,2,1);
 ax_position(3) = 0.48*ax_position(3);
 
 r_center_rot = zeros(2,numel(s));
@@ -438,7 +539,7 @@ end
 
 function ax = represent_time_delta(s,run,track,i_start,i_end, color, background_color, text_color)
 
-position = compute_position(5,2,1,1);
+position = compute_position(5-3,2,1,1);
 ax_position = position;
 ax = axes('Position', ax_position);
 ax.Color = background_color;
@@ -454,6 +555,7 @@ grid on
 xlim([0,s(i_end)-s(i_start)]);
 ax.LineWidth = 1.5;
 
+YTick = ax.YTick;
 for i = 1 : numel(ax.YTickLabel)
     if ( str2num(ax.YTickLabel{i}) >= 0)
         ax.YTickLabel{i} = ['+',num2str(str2num(ax.YTickLabel{i}),'%.3f'),'s'];
@@ -461,6 +563,7 @@ for i = 1 : numel(ax.YTickLabel)
         ax.YTickLabel{i} = [num2str(str2num(ax.YTickLabel{i}),'%.3f'),'s'];
     end
 end
+ax.YTick = YTick;
 box on;
 ax.XTickLabel={};
 
@@ -481,7 +584,7 @@ bottom_margin = 0.05;
 horizontal_margin = 0.035;
 vertical_margin = 0.05;
 
-n_rows = 10;
+n_rows = 7;
 n_cols = 2;
 
 
