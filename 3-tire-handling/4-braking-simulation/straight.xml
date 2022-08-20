@@ -1,0 +1,55 @@
+<circuit format="discrete" type="open">
+    <header>
+        <track_length units="m">1000.0</track_length>
+        <L2_error_left>0.0</L2_error_left>
+        <L2_error_right>0.0</L2_error_right>
+        <max_error_left>0.0</max_error_left>
+        <max_error_right>0.0</max_error_right>
+    </header>
+    <optimization>
+        <cost_curvature> 0.0 </cost_curvature>
+        <cost_track_limits_smoothness> 0.0 </cost_track_limits_smoothness>
+        <cost_track_limits_errors> 0.0 </cost_track_limits_errors>
+        <cost_centerline> 0.0 </cost_centerline>
+        <maximum_kappa> 0.0 </maximum_kappa>
+        <maximum_dkappa> 0.0 </maximum_dkappa>
+    </optimization>
+    <GPS_parameters>
+        <!-- x = earth_radius.cos(reference_latitude).(longitude - origin_longitude) -->
+        <!-- y = earth_radius.(latitude - origin_latitude) -->
+        <origin_longitude units="deg">0.0</origin_longitude>
+        <origin_latitude units="deg">0.0</origin_latitude>
+        <earth_radius units="m">6378388</earth_radius>
+        <reference_latitude units="deg">0.0</reference_latitude>
+    </GPS_parameters>
+    <data number_of_points="2">
+        <arclength units="m"> 0.0 1000.0 </arclength>
+        <centerline> 
+            <x> 0.0 1000.0 </x>
+            <y> 0.0 0.0 </y>
+        </centerline> 
+        <left_boundary> 
+            <x> 0.0 1000.0 </x>
+            <y> -5.0 -5.0 </y>
+        </left_boundary> 
+        <right_boundary> 
+            <x> 0.0 1000.0 </x>
+            <y> 5.0 5.0 </y>
+        </right_boundary> 
+        <left_measured_boundary> 
+            <x> 0.0 1000.0 </x>
+            <y> -5.0 -5.0 </y>
+        </left_measured_boundary> 
+        <right_measured_boundary> 
+            <x> 0.0 1000.0 </x>
+            <y> 5.0 5.0 </y>
+        </right_measured_boundary> 
+        <theta> 0.0 0.0 </theta>
+        <kappa> 0.0 0.0 </kappa> 
+        <nl> 5.0 5.0 </nl>
+        <nr> 5.0 5.0 </nr>
+        <dkappa> 0.0 0.0 </dkappa>
+        <dnl> 0.0 0.0 </dnl>
+        <dnr> 0.0 0.0 </dnr>
+    </data>
+</circuit>
