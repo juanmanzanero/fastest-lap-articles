@@ -6,7 +6,7 @@ close all
 
 
 % Configuration
-video_type             = 'lat-to-long';
+video_type             = 'lat-plus-long';
 windows                = true;
 save_as_gif            = true;
 gif_file_name          = ['combined_video_',strrep(video_type,'-','_'),'.gif'];
@@ -32,14 +32,14 @@ elseif strcmpi(video_type, 'max-lat')
     lambda_value = repmat(deg2rad(9)*0.7512,1,numel(time));
 
 elseif strcmpi(video_type, 'lat-plus-long')
-    time = 0.0:dtime:5;
+    time = 0.0:dtime:6;
     kappa_value = repmat(0.0,1,numel(time));
     kappa_value(31:60) = linspace(0,0.11*0.7512,30);
     kappa_value(61:end) = 0.11*0.7512;
     lambda_value = repmat(deg2rad(9)*0.7512,1,numel(time));
 
 elseif strcmpi(video_type, 'lat-to-long')
-    time = 0.0:dtime:5;
+    time = 0.0:dtime:6;
     kappa_value = repmat(0.0,1,numel(time));
     kappa_value(31:60) = 0.11*0.7512*sin(linspace(0,pi/2,30));
     kappa_value(61:end) = 0.11*0.7512;

@@ -3,9 +3,10 @@ clear all
 close all
 
 fastest_lap = 'flap';
-fastest_lap_path = '/Users/juanmanzanero/Documents/software/fastest-lap';
-fastest_lap_version = '0.4';
-fastest_lap_suffix = 'dylib';
+fastest_lap_path = 'C:\Users\jmanz\Documents\software\fastest-lap-vs\fastest-lap';
+fastest_lap_library_path = 'C:\Users\jmanz\Documents\software\fastest-lap-vs\vs\x64\Release';
+fastest_lap_version = '-0.4';
+fastest_lap_suffix = 'dll';
 vehicle_database = 'neutral-car.xml';
 
 kmh = 1/3.6;
@@ -13,7 +14,7 @@ n_max_char = 100;
 
 dtor = onCleanup(@()(clean(fastest_lap)));
 
-loadlibrary([fastest_lap_path,'/build/lib/libfastestlapc.',fastest_lap_version,'.',fastest_lap_suffix],...
+loadlibrary([fastest_lap_library_path,'\libfastestlapc',fastest_lap_version,'.',fastest_lap_suffix],...
     [fastest_lap_path,'/src/main/c/fastestlapc.h'],'alias',fastest_lap);
 
 calllib(fastest_lap,'set_print_level',0);
@@ -67,6 +68,8 @@ fprintf('Velocity: %gkm/h     Throttle: %g\n',run.u(1)*3.6,run.throttle(1)*100);
 fprintf('Fz front: %gN        Fz  rear: %gN\n',run.Fz_fr(1), run.Fz_rr(1));
 fprintf('(outer tires) rho front: %g%%      rho rear: %g%%\n',run.rho_fr(1)/0.75124*100, run.rho_rr(1)/0.75124*100);
 fprintf('(inner tires) rho front: %g%%      rho rear: %g%%\n',run.rho_fl(1)/0.75124*100, run.rho_rl(1)/0.75124*100);
+
+
 
 function [Fx,Fy,rho] = pacejka_model(Fz,kappa,lambda,tire_data)
     Fz_1 = tire_data.reference_load_1.Text;
