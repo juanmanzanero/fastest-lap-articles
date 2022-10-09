@@ -37,8 +37,6 @@ if (restart)
     % (3) Construct car
     vehicle = 'car';
     calllib("libfastestlapc","create_vehicle_from_xml",vehicle,[prefix,'/database/vehicles/f1/limebeer-2014-f1.xml']);
-    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/front-axle/brakes/max_torque',4000.0);
-    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/rear-axle/brakes/max_torque',4000.0);
     
     % (4) Get f1-3dof variable names
     [n_state, n_algebraic, n_control, n_output] = calllib('libfastestlapc','vehicle_type_get_sizes',0,0,0,0,'f1-3dof');
@@ -57,24 +55,8 @@ if (restart)
     calllib('libfastestlapc','create_vector','trim_at_300kph/algebraic_state',n_algebraic,qa0);
     calllib('libfastestlapc','create_vector','trim_at_300kph/control',n_control,u0);
     
-    % (5) First simulation: lock up the tires
-    n_points_lock_sim = 150;
-    q = repmat(q0',1,n_points_lock_sim+1);
-    qa = repmat(qa0',1,n_points_lock_sim+1);
-    u = repmat(u0',1,n_points_lock_sim+1);
     
-    options =          '<options>';
-    options = [options,    '<sigma> 0.5 </sigma>'];
-    options = [options,'</options>'];
-    
-    u(3,20:end) = -1.0;
-    for i = 1 : n_points_lock_sim
-        [q(:,i+1), qa(:,i+1)] = calllib('libfastestlapc','propagate_vehicle',q(:,i),qa(:,i), u(:,i), vehicle, track, s(i), s(i+1)-s(i), u(:,i+1), true, options);
-    end
-    run_lock = transform_run(struct('q',q,'qa',qa,'u',u),state_names,algebraic_state_names,control_names);
-    
-    % (6) Run optimal acceleration only with front brakes
-    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/chassis/brake_bias',1.0);
+    % (6) Run optimal acceleration with brake-bias at 60%    
     
     % (6.1) Write options
     options =          '<options>';
@@ -88,6 +70,8 @@ if (restart)
     options = [options,    '    <chassis.throttle optimal_control_type="full-mesh">'];
     options = [options,    '        <dissipation> 1.0e-2 </dissipation>'];
     options = [options,    '    </chassis.throttle>'];
+%    options = [options,    '    <chassis.brake-bias optimal_control_type="constant">'];
+%    options = [options,    '    </chassis.brake-bias>'];
     options = [options,    '</control_variables>'];
     options = [options,    '<output_variables>'];
     options = [options,    '    <prefix>run/</prefix>'];
@@ -96,20 +80,19 @@ if (restart)
     options = [options,'</options>'];
     
     % (6.2) Run
-    n_points_100m = 160;
-    s_only_one_axle = linspace(0,n_points_100m,n_points_100m+1);
+    n_points = 100;
+    s = linspace(0,n_points,n_points+1);
     
     fprintf('[INFO] launcher_3_full_throttle_simulation -> [start] optimal laptime simulation\n');
-    calllib("libfastestlapc","optimal_laptime",vehicle,track,n_points_100m+1,s_only_one_axle,options);
+    calllib("libfastestlapc","optimal_laptime",vehicle,track,n_points+1,s,options);
     fprintf('[INFO] launcher_3_full_throttle_simulation -> [end] optimal laptime simulation\n');
     
     % (6.3) Download
-    run_only_front_brakes = download_vectors('run/', {state_names{:}, algebraic_state_names{:}, control_names{:}}, n_points_100m+1);
+    run_60p = download_vectors('run/', {state_names{:}, algebraic_state_names{:}, control_names{:}, output_names{:}}, n_points+1);
     calllib('libfastestlapc','delete_variable','run/*');
     
-    % (7) Run optimal acceleration only with rear brakes
-    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/chassis/brake_bias',0.0);
-    
+    % (7) Run optimal acceleration with brake-bias at 63%    
+    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/chassis/brake_bias',0.63);
     % (7.1) Write options
     options =          '<options>';
     options = [options,    '<closed_simulation> false </closed_simulation>'];
@@ -122,6 +105,8 @@ if (restart)
     options = [options,    '    <chassis.throttle optimal_control_type="full-mesh">'];
     options = [options,    '        <dissipation> 1.0e-2 </dissipation>'];
     options = [options,    '    </chassis.throttle>'];
+%    options = [options,    '    <chassis.brake-bias optimal_control_type="constant">'];
+%    options = [options,    '    </chassis.brake-bias>'];
     options = [options,    '</control_variables>'];
     options = [options,    '<output_variables>'];
     options = [options,    '    <prefix>run/</prefix>'];
@@ -130,15 +115,57 @@ if (restart)
     options = [options,'</options>'];
     
     % (7.2) Run
+    n_points = 100;
+    s = linspace(0,n_points,n_points+1);
+    
     fprintf('[INFO] launcher_3_full_throttle_simulation -> [start] optimal laptime simulation\n');
-    calllib("libfastestlapc","optimal_laptime",vehicle,track,n_points_100m+1,s_only_one_axle,options);
+    calllib("libfastestlapc","optimal_laptime",vehicle,track,n_points+1,s,options);
     fprintf('[INFO] launcher_3_full_throttle_simulation -> [end] optimal laptime simulation\n');
     
     % (7.3) Download
-    run_only_rear_brakes = download_vectors('run/', {state_names{:}, algebraic_state_names{:}, control_names{:}}, n_points_100m+1);
+    run_63p = download_vectors('run/', {state_names{:}, algebraic_state_names{:}, control_names{:}, output_names{:}}, n_points+1);
     calllib('libfastestlapc','delete_variable','run/*');    
     
-    save('run','run_only_front_brakes','run_only_rear_brakes','run_lock','n_points_lock_sim','s','s_only_one_axle','vehicle','prefix','track','lib_suffix','fastest_lap_version','state_names','algebraic_state_names','control_names','output_names');
+    % (7) Run optimal acceleration with brake-bias at 63%    
+    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/chassis/brake_bias',0.57);
+    % (7.1) Write options
+    options =          '<options>';
+    options = [options,    '<closed_simulation> false </closed_simulation>'];
+    options = [options,    '<initial_condition>'];
+    options = [options,    '    <q  from_table="trim_at_300kph/state"/>'];
+    options = [options,    '    <qa from_table="trim_at_300kph/algebraic_state"/>'];
+    options = [options,    '    <u  from_table="trim_at_300kph/control"/>'];
+    options = [options,    '</initial_condition>'];
+    options = [options,    '<control_variables>'];
+    options = [options,    '    <chassis.throttle optimal_control_type="full-mesh">'];
+    options = [options,    '        <dissipation> 1.0e-2 </dissipation>'];
+    options = [options,    '    </chassis.throttle>'];
+%    options = [options,    '    <chassis.brake-bias optimal_control_type="constant">'];
+%    options = [options,    '    </chassis.brake-bias>'];
+    options = [options,    '</control_variables>'];
+    options = [options,    '<output_variables>'];
+    options = [options,    '    <prefix>run/</prefix>'];
+    options = [options,    '</output_variables>'];
+    options = [options,    '<sigma> 0.5 </sigma>'];
+    options = [options,'</options>'];
+    
+    % (7.2) Run
+    n_points = 100;
+    s = linspace(0,n_points,n_points+1);
+    
+    fprintf('[INFO] launcher_3_full_throttle_simulation -> [start] optimal laptime simulation\n');
+    calllib("libfastestlapc","optimal_laptime",vehicle,track,n_points+1,s,options);
+    fprintf('[INFO] launcher_3_full_throttle_simulation -> [end] optimal laptime simulation\n');
+    
+    % (7.3) Download
+    run_57p = download_vectors('run/', {state_names{:}, algebraic_state_names{:}, control_names{:}, output_names{:}}, n_points+1);
+    calllib('libfastestlapc','delete_variable','run/*');    
+        
+    
+    
+    
+    
+    save('run','run_60p','run_63p','run_57p','s','n_points','vehicle','prefix','track','lib_suffix','fastest_lap_version','state_names','algebraic_state_names','control_names','output_names');
     clear all
     load('run');
     restart = false;
@@ -159,8 +186,7 @@ else
     calllib('libfastestlapc','create_track_from_xml',track,'straight.xml');
     calllib("libfastestlapc","create_vehicle_from_xml",vehicle,[prefix,'/database/vehicles/f1/limebeer-2014-f1.xml']);
     calllib('libfastestlapc','vehicle_change_track',vehicle,track);
-    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/front-axle/brakes/max_torque',4000.0);
-    calllib('libfastestlapc','vehicle_set_parameter',vehicle,'vehicle/rear-axle/brakes/max_torque',4000.0);
+    
     [n_state, n_algebraic, n_control, n_output] = calllib('libfastestlapc','vehicle_type_get_sizes',0,0,0,0,'f1-3dof');
     n_char = 100;
     state_names = cell(1,n_state);               state_names(:)           = {blanks(n_char)};
@@ -172,15 +198,15 @@ else
 end
 
 %
-% (1) Plot the locking car simulation
-%plot_locking_simulation(run_lock,s(1:n_points_lock_sim+1),vehicle,state_names,algebraic_state_names,control_names,output_names,'1_lock_simulation_b')
+% (1) Plot the simulation with brake-bias at 60%
+%plot_simulation_1car(run_60p,s(1:n_points+1),vehicle,state_names,algebraic_state_names,control_names,output_names,'1_brake_bias_60p')
+plot_simulation_1car_with_ghost(run_57p,s(1:n_points+1),vehicle,state_names,algebraic_state_names,control_names,output_names,'3_brake_bias_57p',run_60p)
 
 %
 % (2) Plot the two cars: only front brake and only rear brake
 %n_points_100m = 160;
 %s_only_one_axle = linspace(0,n_points_100m,n_points_100m+1);
 %plot_comparison(run_only_front_brakes,run_only_rear_brakes,s_only_one_axle,vehicle,state_names,algebraic_state_names,control_names,output_names,'2_front_vs_rear_brake_turquoise')
-
 
 %
 %       Helper functions -----------------------------------------:-
@@ -232,14 +258,14 @@ else
 end
 end
 
-function plot_locking_simulation(run,s,vehicle,state_names,algebraic_state_names,control_names,output_names,file_name)
+function plot_simulation_1car(run,s,vehicle,state_names,algebraic_state_names,control_names,output_names,file_name)
 
 mkdir(['figs/',file_name]);
 background_color =  [13/255, 17/255, 23/255];
 text_color = [201,209,217]/255;
 blue   = [0   0.447000000000000   0.741];
-
-time = 0:1/30.0:run.time(end);
+FPS = 60;
+time = 0:1/FPS:run.time(end);
 tire_data = readstruct('../limebeer-2014-f1.xml');
 
 for i_frame = 1:numel(time)
@@ -308,7 +334,7 @@ for i_frame = 1:numel(time)
     % (4) Plot the pacejka model and the point
     ax_pacejka = axes('Position',[0.1 0.55 1080.0/1920.0*0.4 0.4]);
     hold on
-    kappa_plot = linspace(-1.2,1.2,1000);
+    kappa_plot = linspace(-0.3,0.3,1000);
     plot(kappa_plot,pacejka_model_longitudinal(-qa_i(1)*660*9.81,kappa_plot,tire_data),'LineWidth',2,'Color',text_color);
     plot(q_i(1),pacejka_model_longitudinal(-qa_i(1)*660*9.81,q_i(1),tire_data),'o','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
     plot(q_i(1),pacejka_model_longitudinal(-qa_i(1)*660*9.81,q_i(1),tire_data),'.','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
@@ -333,13 +359,13 @@ for i_frame = 1:numel(time)
     ax_pacejka.XMinorGrid = 'on';
     set(gca,'MinorGridLineStyle','-')
     ylim([-12000,12000]);
-    xlim([-1.2,1.2]);
+    xlim([-0.3,0.3]);
     ax_pacejka.FontSize = 16;
     
     % (4) Plot the pacejka model and the point
     ax_pacejka = axes('Position',[0.4 0.55 1080.0/1920.0*0.4 0.4]);
     hold on
-    kappa_plot = linspace(-1.2,1.2,1000);
+    kappa_plot = linspace(-0.3,0.3,1000);
     plot(kappa_plot,pacejka_model_longitudinal(-qa_i(3)*660*9.81,kappa_plot,tire_data),'LineWidth',2,'Color',text_color);
     plot(q_i(3),pacejka_model_longitudinal(-qa_i(3)*660*9.81,q_i(3),tire_data),'o','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
     plot(q_i(3),pacejka_model_longitudinal(-qa_i(3)*660*9.81,q_i(3),tire_data),'.','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
@@ -366,7 +392,7 @@ for i_frame = 1:numel(time)
     ax_pacejka.XMinorGrid = 'on';
     set(gca,'MinorGridLineStyle','-')
     ylim([-12000,12000]);
-    xlim([-1.2,1.2]);
+    xlim([-0.3,0.3]);
     ax_pacejka.FontSize = 16;
     
     % (5) Plot throttle
@@ -412,15 +438,206 @@ for i_frame = 1:numel(time)
     
     set(h, 'InvertHardcopy', 'off');
     print(h,['figs/',file_name,'/fig_',num2str(i_frame),'.png'],'-dpng','-r300');
-    % Export as GIF
-    frame = getframe(1);
-    im = frame2im(frame);
-    [imind,cm] = rgb2ind(im,256);
-    if i_frame == 1
-        imwrite(imind,cm,[file_name,'.gif'],'gif', 'Loopcount',inf);
-    else
-        imwrite(imind,cm,[file_name,'.gif'],'gif','WriteMode','append','DelayTime',1/30.0);
+    close(h)
+end
+end
+
+function plot_simulation_1car_with_ghost(run,s,vehicle,state_names,algebraic_state_names,control_names,output_names,file_name,run_ghost)
+
+mkdir(['figs/',file_name]);
+background_color =  [13/255, 17/255, 23/255];
+text_color = [201,209,217]/255;
+blue   = [0   0.447000000000000   0.741];
+FPS = 60;
+time = 0:1/FPS:run.time(end);
+tire_data = readstruct('../limebeer-2014-f1.xml');
+
+for i_frame = 1:numel(time)
+    fprintf('frame: %d/%d\n',i_frame,length(time));
+    
+    q = [run.front_axle.left_tire.kappa; run.front_axle.right_tire.kappa; run.rear_axle.left_tire.kappa; run.rear_axle.right_tire.kappa;...
+        run.chassis.velocity.x; run.chassis.velocity.y; run.chassis.omega.z; run.time; run.road.lateral_displacement; run.road.track_heading_angle];
+    qa = [run.chassis.Fz_fl; run.chassis.Fz_fr; run.chassis.Fz_rl; run.chassis.Fz_rr];
+    u = [run.front_axle.steering_angle; run.rear_axle.boost; run.chassis.throttle; run.chassis.brake_bias];
+    
+    q_i = interp1(run.time,q',time(i_frame));
+    qa_i = interp1(run.time,qa',time(i_frame));
+    u_i = interp1(run.time,u',time(i_frame));
+    s_i = interp1(run.time,s,time(i_frame));
+    
+    
+    q_ghost = [run_ghost.front_axle.left_tire.kappa; run_ghost.front_axle.right_tire.kappa; run_ghost.rear_axle.left_tire.kappa; run_ghost.rear_axle.right_tire.kappa;...
+        run_ghost.chassis.velocity.x; run_ghost.chassis.velocity.y; run_ghost.chassis.omega.z; run_ghost.time; run_ghost.road.lateral_displacement; run_ghost.road.track_heading_angle];
+    qa_ghost = [run_ghost.chassis.Fz_fl; run_ghost.chassis.Fz_fr; run_ghost.chassis.Fz_rl; run_ghost.chassis.Fz_rr];
+    u_ghost = [run_ghost.front_axle.steering_angle; run_ghost.rear_axle.boost; run_ghost.chassis.throttle; run_ghost.chassis.brake_bias];
+    
+    q_ghost_i = interp1(run_ghost.time,q_ghost',time(i_frame));
+    qa_ghost_i = interp1(run_ghost.time,qa_ghost',time(i_frame));
+    u_ghost_i = interp1(run_ghost.time,u_ghost',time(i_frame));
+    s_ghost_i = interp1(run_ghost.time,s,time(i_frame));    
+    
+    screen_size = get(0,'ScreenSize');
+    h = figure('Visible','off','Position',[0 0 screen_size(3) 1080.0/1920.0*screen_size(3)]);
+    hold on
+    
+    % (1) Plot track
+    kerb_color_length = 2.5;
+    for i = -40:400
+        patch([kerb_color_length*2*i,kerb_color_length*(2*i+1),kerb_color_length*(2*i+1),kerb_color_length*2*i],[4,4,4.5,4.5],[1,0,0]) ;
+        patch([kerb_color_length*2*i,kerb_color_length*(2*i+1),kerb_color_length*(2*i+1),kerb_color_length*2*i],-[4,4,4.5,4.5],[1,0,0]) ;
     end
+    for i = -40:400
+        patch([kerb_color_length*(2*i+1), kerb_color_length*(2*i+2),kerb_color_length*(2*i+2),kerb_color_length*(2*i+1)],[4,4,4.5,4.5],[1,1,1]) ;
+        patch([kerb_color_length*(2*i+1), kerb_color_length*(2*i+2),kerb_color_length*(2*i+2),kerb_color_length*(2*i+1)],-[4,4,4.5,4.5],[1,1,1]) ;
+    end
+    
+    patch([-100,1100,1100,-100],[-4,-4,4,4],[129/255, 149/255, 179/255]);
+    
+    
+    
+    axis equal
+    h.Color = [13/255, 17/255, 23/255];
+    h.CurrentAxes.Visible = 'off';
+    ax = gca;
+    ax.Position = [0,0,1,1];
+    
+    % (n) Draw car
+    x_rr = calllib("libfastestlapc","vehicle_get_output",vehicle,q_i,qa_i,u_i,s_i,'rear_axle.right_tire.x');
+    y_rr = calllib("libfastestlapc","vehicle_get_output",vehicle,q_i,qa_i,u_i,s_i,'rear_axle.right_tire.y');
+    a_x = calllib("libfastestlapc","vehicle_get_output",vehicle,q_i,qa_i,u_i,s_i,'ax');
+    psi = q_i(end);
+    
+    x_ghost_rr = calllib("libfastestlapc","vehicle_get_output",vehicle,q_ghost_i,qa_ghost_i,u_ghost_i,s_ghost_i,'rear_axle.right_tire.x');
+    y_ghost_rr = calllib("libfastestlapc","vehicle_get_output",vehicle,q_ghost_i,qa_ghost_i,u_ghost_i,s_ghost_i,'rear_axle.right_tire.y');
+    psi_ghost = q_ghost_i(end);
+    
+    plot_f1(x_rr,-y_rr,rad2deg(psi)+180,1.6+1.8, 0.73*2,'redbull');
+    plot_f1(x_ghost_rr,-y_ghost_rr,rad2deg(psi_ghost)+180,1.6+1.8, 0.73*2,'redbull',[1,1,1],0.2);
+    
+    if ( abs(q_i(1) + 1.0) < 0.1 )
+        
+            text(x_rr + 1.6+ 1.8, 1.2,'Locked','FontName','Formula1','HorizontalAlignment','center','backgroundColor',[1,0,0],'FontSize',20)
+        
+    end
+    
+    if ( abs(q_i(3) + 1.0) < 0.1 )
+        
+            text(x_rr, 1.2,'Locked','FontName','Formula1','HorizontalAlignment','center','backgroundColor',[1,0,0],'FontSize',20)
+        
+    end
+    
+    % (3) Set camera
+    camera_width = 20.0;
+    xlim([s_i-1.777*camera_width*0.5,s_i+1.777*camera_width*0.5])
+    ylim([-5,-5+camera_width])
+    
+    % (4) Plot the pacejka model and the point
+    ax_pacejka = axes('Position',[0.1 0.55 1080.0/1920.0*0.4 0.4]);
+    hold on
+    kappa_plot = linspace(-0.3,0.3,1000);
+    plot(kappa_plot,pacejka_model_longitudinal(-qa_i(1)*660*9.81,kappa_plot,tire_data),'LineWidth',2,'Color',text_color);
+    plot(q_i(1),pacejka_model_longitudinal(-qa_i(1)*660*9.81,q_i(1),tire_data),'o','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
+    plot(q_i(1),pacejka_model_longitudinal(-qa_i(1)*660*9.81,q_i(1),tire_data),'.','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
+    
+    if ( abs(q_i(1) + 1.0) < 0.1 )
+        
+            text(-0.8, 2000.0,'Locked','FontName','Formula1','HorizontalAlignment','center','backgroundColor',[1,0,0],'FontSize',30)
+        
+    end
+    
+    ax_pacejka.Color = background_color;
+    ax_pacejka.XAxis.Color = text_color;
+    ax_pacejka.YAxis.Color = text_color;
+    ax_pacejka.XMinorTick = 'on';
+    ax_pacejka.YMinorTick = 'on';
+    ax_pacejka.LineWidth = 2;
+    ax_pacejka.YAxis.Exponent = 0;
+    xlabel('front tire longitudinal slip, kappa [-]','FontSize',20);
+    annotation(h,'textbox',[0.075 0.95 1080.0/1920.0*0.5 0.05],'string','front tire longitudinal force, Fx [N]','FontSize',18,'FontName','Formula1','horizontalalignment','center','verticalAlignment','middle','Color',text_color,'LineStyle','none');
+    box on
+    grid on
+    ax_pacejka.XMinorGrid = 'on';
+    set(gca,'MinorGridLineStyle','-')
+    ylim([-12000,12000]);
+    xlim([-0.3,0.3]);
+    ax_pacejka.FontSize = 16;
+    
+    % (4) Plot the pacejka model and the point
+    ax_pacejka = axes('Position',[0.4 0.55 1080.0/1920.0*0.4 0.4]);
+    hold on
+    kappa_plot = linspace(-0.3,0.3,1000);
+    plot(kappa_plot,pacejka_model_longitudinal(-qa_i(3)*660*9.81,kappa_plot,tire_data),'LineWidth',2,'Color',text_color);
+    plot(q_i(3),pacejka_model_longitudinal(-qa_i(3)*660*9.81,q_i(3),tire_data),'o','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
+    plot(q_i(3),pacejka_model_longitudinal(-qa_i(3)*660*9.81,q_i(3),tire_data),'.','MarkerSize',25,'Color',[1,0,0],'LineWidth',4);
+    
+    if ( abs(q_i(3) + 1.0) < 0.1 )
+       
+            text(-0.8, 2000.0,'Locked','FontName','Formula1','HorizontalAlignment','center','backgroundColor',[1,0,0],'FontSize',30)
+        
+    end
+    
+    ax_pacejka.Color = background_color;
+    ax_pacejka.XAxis.Color = text_color;
+    ax_pacejka.YAxis.Color = text_color;
+    
+    ax_pacejka.XMinorTick = 'on';
+    ax_pacejka.YMinorTick = 'on';
+    ax_pacejka.LineWidth = 2;
+    ax_pacejka.YAxis.Exponent = 0;
+    xlabel('rear tire longitudinal slip, kappa [-]','FontSize',20);
+    
+    annotation(h,'textbox',[0.375 0.95 1080.0/1920.0*0.5 0.05],'string','rear tire longitudinal force, Fx [N]','FontSize',18,'FontName','Formula1','horizontalalignment','center','verticalAlignment','middle','Color',text_color,'LineStyle','none');
+    box on
+    grid on
+    ax_pacejka.XMinorGrid = 'on';
+    set(gca,'MinorGridLineStyle','-')
+    ylim([-12000,12000]);
+    xlim([-0.3,0.3]);
+    ax_pacejka.FontSize = 16;
+    
+    % (5) Plot throttle
+    ax_throttle = axes('Position',[0.675 0.55 1080.0/1920.0*0.4*0.1 0.4]);
+    patch([0,0,1,1,0],[0,-u_i(3)*100,-u_i(3)*100,0,0],blue);
+    ylabel('Brake [%]')
+    ax_throttle.Color = background_color;
+    ax_throttle.XAxis.Color = text_color;
+    ax_throttle.YAxis.Color = text_color;
+    ax_throttle.FontSize = 14;
+    ax_throttle.XMinorTick = 'on';
+    ax_throttle.YMinorTick = 'on';
+    ax_throttle.LineWidth = 2;
+    ax_throttle.XTick = [];
+    ylim([0,100]);
+    box on
+    
+    % Plot velocity in the form of gauges
+    ax_velocity = axes('Position',[0.7 0.50 1080.0/1920.0*0.5 0.5]);
+    hold on;
+    ax_velocity.Visible = 'off';
+    patch([ - 1.5*sind(linspace(45,315,50)), -1.2*sind(linspace(315,45,50))],...
+        [-1.5*cosd(linspace(45,315,50)), -1.2*cosd(linspace(315,45,50))],text_color);
+    
+    vel = max(0.0,q_i(5));
+    angle_for_velocity = 45 + (315-45)*3.6*vel/350;
+    patch([ - 1.5*sind(linspace(45,angle_for_velocity,50)), -1.2*sind(linspace(angle_for_velocity,45,50))],...
+        [-1.5*cosd(linspace(45,angle_for_velocity,50)), -1.2*cosd(linspace(angle_for_velocity,45,50))],blue);
+    
+    % Put marks at several velocities
+    velocities = 0:25:350;
+    
+    for velocity = velocities
+        angle = 45 + (315-45)*velocity/velocities(end);
+        text(-1.75*sind(angle), -1.75*cosd(angle),[num2str(velocity)],'horizontalAlignment','center','FontName','Formula1','Color',text_color,'FontSize',14)
+    end
+    text(0.0,2.0,'Velocity','FontSize',22,'FontName','Formula1','Color',text_color,'horizontalAlignment','center');
+    text(0.0,0.0,[num2str(a_x/9.81,'%.1f'),'g'],'FontSize',32,'FontName','Formula1','Color',text_color,'horizontalAlignment','center');
+    axis equal
+    xlim([-2.0,2.0]);
+    ylim([-1.5,2.5]);
+    
+    
+    set(h, 'InvertHardcopy', 'off');
+    print(h,['figs/',file_name,'/fig_',num2str(i_frame),'.png'],'-dpng','-r0');
     close(h)
 end
 end

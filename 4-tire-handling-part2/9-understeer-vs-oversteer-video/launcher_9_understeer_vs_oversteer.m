@@ -163,7 +163,7 @@ if ~exist('restart','var') | restart
     
     % (5.2) Run a simulation with the 'steady-state' controls
     ds_simulation = 1.0;
-    n_timesteps = 90;
+    n_timesteps = 100;
     run_understeer.q0 = [run_understeer.kappa_fl(1), run_understeer.kappa_fr(1), run_understeer.kappa_rl(1), run_understeer.kappa_rr(1), run_understeer.u(1), run_understeer.v(1), run_understeer.omega(1), 0, run_understeer.lateral_displacement(1), run_understeer.track_heading_angle(1)];
     run_understeer.qa0 = [run_understeer.Fz_fl(1), run_understeer.Fz_fr(1), run_understeer.Fz_rl(1), run_understeer.Fz_rr(1)];
     run_understeer.controls0 = [run_understeer.delta(1), 0.0, run_understeer.throttle(1), 0.6];
@@ -184,7 +184,7 @@ if ~exist('restart','var') | restart
         current_arclength = current_arclength + ds_simulation;
         
         % After 1 second, increase the steering by 25%
-        if run_understeer.q(8,i+1) > 0.5 
+        if run_understeer.q(8,i+1) > 0.5
             run_understeer.controls(1,i+1:end) = max(run_understeer.controls(1,i+1:end)*1.05,-deg2rad(14));
         end
         
@@ -245,7 +245,7 @@ if ~exist('restart','var') | restart
     
     % (6.2) Run a simulation with the 'steady-state' controls
     ds_simulation = 1.0;
-    n_timesteps = 71;
+    n_timesteps = 100;
     run_oversteer.q0 = [run_oversteer.kappa_fl(1), run_oversteer.kappa_fr(1), run_oversteer.kappa_rl(1), run_oversteer.kappa_rr(1), run_oversteer.u(1), run_oversteer.v(1), run_oversteer.omega(1), 0, run_oversteer.lateral_displacement(1), run_oversteer.track_heading_angle(1)];
     run_oversteer.qa0 = [run_oversteer.Fz_fl(1), run_oversteer.Fz_fr(1), run_oversteer.Fz_rl(1), run_oversteer.Fz_rr(1)];
     run_oversteer.controls0 = [run_oversteer.delta(1), 0.0, run_oversteer.throttle(1), 0.6];
@@ -277,110 +277,64 @@ if ~exist('restart','var') | restart
 end
 
 %% Block 2: Representations
-cases_to_plot = {'oversteer'};%{'oversteer','understeer'};
-representation_type = 'video-manoeuvre';
 
-for case_to_plot_ = cases_to_plot
-    case_to_plot = case_to_plot_{:};
 
+set(groot,'defaultAxesFontName',font_name);
+
+video_configuration.frame_rate = 20;
+video_configuration.final_time = Inf;
+delta_time = 1/video_configuration.frame_rate;
+time = 0:delta_time:min(run_understeer.q(8,end),run_oversteer.q(8,end));
+
+% Interpolate arclength to the new time
+arclength_mesh = 0:ds_simulation:min(size(run_understeer.q,2)-1*ds_simulation,size(run_oversteer.q,2)-1*ds_simulation);
+arclength_for_time_understeer = interp1(run_understeer.q(8,1:numel(arclength_mesh)),arclength_mesh,time);
+arclength_for_time_oversteer = interp1(run_oversteer.q(8,1:numel(arclength_mesh)),arclength_mesh,time);
+q_u = interp1(arclength_mesh,run_understeer.q(:,1:numel(arclength_mesh))',arclength_for_time_understeer)';
+controls_u = interp1(arclength_mesh,run_understeer.controls(:,1:numel(arclength_mesh))',arclength_for_time_understeer)';
+qa_u = interp1(arclength_mesh,run_understeer.qa(:,1:numel(arclength_mesh))',arclength_for_time_understeer)';
+
+q_o = interp1(arclength_mesh,run_oversteer.q(:,1:numel(arclength_mesh))',arclength_for_time_oversteer)';
+controls_o = interp1(arclength_mesh,run_oversteer.controls(:,1:numel(arclength_mesh))',arclength_for_time_oversteer)';
+qa_o = interp1(arclength_mesh,run_oversteer.qa(:,1:numel(arclength_mesh))',arclength_for_time_oversteer)';
+
+for i_time = 1 : numel(time)
+    fprintf('%d/%d\n',i_time,numel(time));
     
-    if strcmpi(case_to_plot,'understeer')
-        run_to_plot = run_understeer;
-        vehicle_to_plot = vehicle_understeer;
-        figure_title = 'Understeer';
-        skin = 'redbull';
-    elseif strcmpi(case_to_plot,'neutral')
-        run_to_plot = run;
-        vehicle_to_plot = vehicle;
-        figure_title = 'Neutral car';
-        skin = 'mercedes';
-    elseif strcmpi(case_to_plot,'oversteer')
-        run_to_plot = run_oversteer;
-        vehicle_to_plot = vehicle_oversteer;
-        figure_title = 'Oversteer';
-        skin = 'ferrari';
+    run_understeer_plot = struct('kappa_fl',q_u(1,i_time),'kappa_fr',q_u(2,i_time),'kappa_rl',q_u(3,i_time),'kappa_rr',q_u(4,i_time),...
+        'u',q_u(5,i_time),'v',q_u(6,i_time),'omega',q_u(7,i_time),...
+        'time',q_u(8,i_time),'lateral_displacement',q_u(9,i_time),'track_heading_angle',q_u(10,i_time),...
+        'delta',controls_u(1,i_time), 'throttle',controls_u(3,i_time),...
+        'Fz_fl',qa_u(1,i_time),'Fz_fr',qa_u(2,i_time),'Fz_rl',qa_u(3,i_time),'Fz_rr',qa_u(4,i_time));
+    
+    run_oversteer_plot = struct('kappa_fl',q_o(1,i_time),'kappa_fr',q_o(2,i_time),'kappa_rl',q_o(3,i_time),'kappa_rr',q_o(4,i_time),...
+        'u',q_o(5,i_time),'v',q_o(6,i_time),'omega',q_o(7,i_time),...
+        'time',q_o(8,i_time),'lateral_displacement',q_o(9,i_time),'track_heading_angle',q_o(10,i_time),...
+        'delta',controls_o(1,i_time), 'throttle',controls_o(3,i_time),...
+        'Fz_fl',qa_o(1,i_time),'Fz_fr',qa_o(2,i_time),'Fz_rl',qa_o(3,i_time),'Fz_rr',qa_o(4,i_time));    
+    
+    h = represent_image(run_understeer_plot, run_oversteer_plot, vehicle_understeer, vehicle_oversteer,arclength_for_time_understeer(i_time),arclength_for_time_oversteer(i_time),'comparison');
+    
+    frame = getframe(h);
+    im = frame2im(frame);
+    [imind,cm] = rgb2ind(im,256);
+    im_size = size(imind);
+    imind = imind(100:im_size(1)-150,:);
+    if i_time == 1
+        imwrite(imind,cm,['title_page.gif'],'gif', 'Loopcount',inf);
+    elseif i_time == numel(time)
+        imwrite(imind,cm,['title_page.gif'],'gif','WriteMode','append','DelayTime',delta_time);
+        imwrite(imind,cm,['title_page.gif'],'gif','WriteMode','append','DelayTime',2);
     else
-        error('yeah');
+        imwrite(imind,cm,['title_page.gif'],'gif','WriteMode','append','DelayTime',delta_time);
     end
     
-    set(groot,'defaultAxesFontName',font_name);
-    if strcmpi(representation_type,'image')
-        h = represent_image(run_to_plot, skin, vehicle_to_plot,arclength(1),figure_title);
-        h.Visible = 'on';
-        
-    elseif strcmpi(representation_type,'video-still')
-        video_configuration.frame_rate = 10;
-        video_configuration.final_time = 4;
-        delta_time = 1/video_configuration.frame_rate;
-        time = 0:delta_time:video_configuration.final_time;
-        arclength_for_time = interp1(run_to_plot.time,arclength,time);
-        
-        for i_time = 1 : numel(time)
-            fprintf('%d/%d\n',i_time,numel(time));
-            h = represent_image(run_to_plot, skin, vehicle_to_plot,arclength_for_time(i_time),figure_title);
-            
-            frame = getframe(h);
-            im = frame2im(frame);
-            [imind,cm] = rgb2ind(im,256);
-            im_size = size(imind);
-            imind = imind(80:im_size(1)-100,300:im_size(2)-400);
-            if i_time == 1
-                imwrite(imind,cm,[case_to_plot,'.gif'],'gif', 'Loopcount',inf);
-            else
-                imwrite(imind,cm,[case_to_plot,'.gif'],'gif','WriteMode','append','DelayTime',delta_time);
-            end
-            
-            close(h);
-        end
-        
-    elseif strcmpi(representation_type,'video-manoeuvre')
-        video_configuration.frame_rate = 20;
-        video_configuration.final_time = Inf;
-        delta_time = 1/video_configuration.frame_rate;
-        time = 0:delta_time:min(run_to_plot.q(8,end),video_configuration.final_time);
-        
-        % Interpolate arclength to the new time
-        arclength_mesh = 0:ds_simulation:(size(run_to_plot.q,2)-1)*ds_simulation;
-        arclength_for_time = interp1(run_to_plot.q(8,:),arclength_mesh,time);
-        q = interp1(arclength_mesh,run_to_plot.q',arclength_for_time)';
-        controls = interp1(arclength_mesh,run_to_plot.controls',arclength_for_time)';
-        qa = interp1(arclength_mesh,run_to_plot.qa',arclength_for_time)';
-        for i_time = 1 : numel(time)
-            fprintf('%d/%d\n',i_time,numel(time));
-            
-            run_frame = struct('kappa_fl',q(1,i_time),'kappa_fr',q(2,i_time),'kappa_rl',q(3,i_time),'kappa_rr',q(4,i_time),...
-                               'u',q(5,i_time),'v',q(6,i_time),'omega',q(7,i_time),...
-                                'time',q(8,i_time),'lateral_displacement',q(9,i_time),'track_heading_angle',q(10,i_time),...
-                               'delta',controls(1,i_time), 'throttle',controls(3,i_time),...
-                               'Fz_fl',qa(1,i_time),'Fz_fr',qa(2,i_time),'Fz_rl',qa(3,i_time),'Fz_rr',qa(4,i_time));
-      
-                                
-            
-            h = represent_image(run_frame, skin, vehicle_to_plot,arclength_for_time(i_time),figure_title);
-            
-            frame = getframe(h);
-            im = frame2im(frame);
-            [imind,cm] = rgb2ind(im,256);
-            im_size = size(imind);
-            imind = imind(80:im_size(1)-100,300:im_size(2)-400);
-            if i_time == 1
-                imwrite(imind,cm,[case_to_plot,'_manoeuvre.gif'],'gif', 'Loopcount',inf);
-            elseif i_time == numel(time)
-                imwrite(imind,cm,[case_to_plot,'_manoeuvre.gif'],'gif','WriteMode','append','DelayTime',delta_time);
-                imwrite(imind,cm,[case_to_plot,'_manoeuvre.gif'],'gif','WriteMode','append','DelayTime',2);
-            else
-                imwrite(imind,cm,[case_to_plot,'_manoeuvre.gif'],'gif','WriteMode','append','DelayTime',delta_time);
-            end
-            
-            close(h);
-        end        
-    end
-    
+    close(h);
 end
 
 
 
-function h = represent_image(run,skin,vehicle,arclength,figure_title)
+function h = represent_image(run_understeer, run_oversteer,vehicle_understeer, vehicle_oversteer,arclength_understeer, arclength_oversteer,figure_title)
 global fastest_lap
 global font_name
 text_color =  [13/255, 17/255, 23/255];
@@ -393,7 +347,7 @@ Ntog = 1/(795*9.81);
 
 [track_limits.r_left, track_limits.r_right] = create_circular_track(track_curvature,n_points_track,12,false);
 
-h = figure('Position',[237         191        1574         787],'Visible',visible_figure);
+h = figure('Position',[1    50  539 647],'Visible',visible_figure);
 h.Color = background_color;
 hold on
 ax = gca;
@@ -404,7 +358,7 @@ plot(track_limits.r_right(1,:),track_limits.r_right(2,:),'-k');
 
 n_kerb = 50;
 n_points_per_kerb = 50;
-kerb_theta = linspace(0,2*pi,n_kerb*n_points_per_kerb) - arclength*track_curvature;
+kerb_theta = linspace(0,2*pi,n_kerb*n_points_per_kerb) - arclength_understeer*track_curvature;
 
 for i = 1 : n_kerb-1
     if mod(i,2) == 0
@@ -422,196 +376,63 @@ patch([cos(kerb_theta((n_kerb-1)*n_points_per_kerb+1:n_kerb*n_points_per_kerb)),
     [1,0,0]...
     )
 
-q0 = [run.kappa_fl(1), run.kappa_fr(1), run.kappa_rl(1), run.kappa_rr(1), run.u(1), run.v(1), run.omega(1), 0, run.lateral_displacement(1), run.track_heading_angle(1)];
-qa0 = [run.Fz_fl(1), run.Fz_fr(1), run.Fz_rl(1), run.Fz_rr(1)];
-u0 = [run.delta(1), 0.0, run.throttle(1), 0.6];
+q0_u = [run_understeer.kappa_fl(1), run_understeer.kappa_fr(1), run_understeer.kappa_rl(1), run_understeer.kappa_rr(1), run_understeer.u(1), run_understeer.v(1), run_understeer.omega(1), 0, run_understeer.lateral_displacement(1), run_understeer.track_heading_angle(1)];
+qa0_u = [run_understeer.Fz_fl(1), run_understeer.Fz_fr(1), run_understeer.Fz_rl(1), run_understeer.Fz_rr(1)];
+u0_u = [run_understeer.delta(1), 0.0, run_understeer.throttle(1), 0.6];
 
 % Decision: plot the car always in s = 0, so that the kerb rotates but the
 % car does not
-x_rr = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.right-tire.position.x');
-y_rr = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.right-tire.position.y');
-x_fr = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.right-tire.position.x');
-y_fr = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.right-tire.position.y');
-psi  = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'chassis.attitude.yaw');
-x = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'chassis.position.x');
-y = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'chassis.position.y');
+x_rr_u = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'rear-axle.right-tire.position.x');
+y_rr_u = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'rear-axle.right-tire.position.y');
+x_fr_u = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'front-axle.right-tire.position.x');
+y_fr_u = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'front-axle.right-tire.position.y');
+psi_u  = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'chassis.attitude.yaw');
 
 % Get tire forces
-F_fl(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.left-tire.force.inertial.x');
-F_fl(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.left-tire.force.inertial.y');
+F_fr_u(1) = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'front-axle.right-tire.force.inertial.x');
+F_fr_u(2) = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'front-axle.right-tire.force.inertial.y');
 
-F_fr(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.right-tire.force.inertial.x');
-F_fr(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.right-tire.force.inertial.y');
+F_rr_u(1) = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'rear-axle.right-tire.force.inertial.x');
+F_rr_u(2) = calllib(fastest_lap,'vehicle_get_output',vehicle_understeer,q0_u,qa0_u,u0_u,0,'rear-axle.right-tire.force.inertial.y');
 
-F_rl(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.left-tire.force.inertial.x');
-F_rl(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.left-tire.force.inertial.y');
+plot_f1(x_rr_u,-y_rr_u,rad2deg(psi_u)+180,3.6,0.73*2,'redbull');
 
-F_rr(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.right-tire.force.inertial.x');
-F_rr(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.right-tire.force.inertial.y');
+draw_arrow([x_fr_u,x_fr_u + F_fr_u(1)/(795*9.81)*2],[-y_fr_u,-y_fr_u-F_fr_u(2)/(795*9.81)*2],[0,1,0]);
+draw_arrow([x_rr_u,x_rr_u + F_rr_u(1)/(795*9.81)*2],[-y_rr_u,-y_rr_u-F_rr_u(2)/(795*9.81)*2],[0,1,0]);
 
-% Get tire velocities in body frame
-v_fl(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.left-tire.velocity.car_frame.x');
-v_fl(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.left-tire.velocity.car_frame.y');
+%% Oversteering car
+q0_o = [run_oversteer.kappa_fl(1), run_oversteer.kappa_fr(1), run_oversteer.kappa_rl(1), run_oversteer.kappa_rr(1), run_oversteer.u(1), run_oversteer.v(1), run_oversteer.omega(1), 0, run_oversteer.lateral_displacement(1), run_oversteer.track_heading_angle(1)];
+qa0_o = [run_oversteer.Fz_fl(1), run_oversteer.Fz_fr(1), run_oversteer.Fz_rl(1), run_oversteer.Fz_rr(1)];
+u0_o = [run_oversteer.delta(1), 0.0, run_oversteer.throttle(1), 0.6];
 
-v_fr(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.right-tire.velocity.car_frame.x');
-v_fr(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.right-tire.velocity.car_frame.y');
+ds_o_to_u = 10.0;
 
-v_rl(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.left-tire.velocity.x');
-v_rl(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.left-tire.velocity.y');
+x_rr_o = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'rear-axle.right-tire.position.x');
+y_rr_o = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'rear-axle.right-tire.position.y');
+x_fr_o = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'front-axle.right-tire.position.x');
+y_fr_o = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'front-axle.right-tire.position.y');
+psi_o  = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'chassis.attitude.yaw');
 
-v_rr(1) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.right-tire.velocity.x');
-v_rr(2) = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.right-tire.velocity.y');
+% Get tire forces
+F_fr_o(1) = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'front-axle.right-tire.force.inertial.x');
+F_fr_o(2) = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'front-axle.right-tire.force.inertial.y');
 
-% Get lambda
-lambda_fl = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.left-tire.lambda');
-lambda_fr = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'front-axle.right-tire.lambda');
-lambda_rl = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.left-tire.lambda');
-lambda_rr = calllib(fastest_lap,'vehicle_get_output',vehicle,q0,qa0,u0,0,'rear-axle.right-tire.lambda');
+F_rr_o(1) = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'rear-axle.right-tire.force.inertial.x');
+F_rr_o(2) = calllib(fastest_lap,'vehicle_get_output',vehicle_oversteer,q0_o,qa0_o,u0_o,arclength_oversteer-arclength_understeer+ds_o_to_u,'rear-axle.right-tire.force.inertial.y');
 
-kappa_fl = q0(1);
-kappa_fr = q0(2);
-kappa_rl = q0(3);
-kappa_rr = q0(4);
+plot_f1(x_rr_o,-y_rr_o,rad2deg(psi_o)+180,3.6,0.73*2,'ferrari');
 
-plot_f1(x_rr,-y_rr,rad2deg(psi)+180,3.6,0.73*2,skin);
+draw_arrow([x_fr_o,x_fr_o + F_fr_o(1)/(795*9.81)*2],[-y_fr_o,-y_fr_o-F_fr_o(2)/(795*9.81)*2],[0,1,0]);
+draw_arrow([x_rr_o,x_rr_o + F_rr_o(1)/(795*9.81)*2],[-y_rr_o,-y_rr_o-F_rr_o(2)/(795*9.81)*2],[0,1,0]);
 
-draw_arrow([x_fr,x_fr + F_fr(1)/(795*9.81)*2],[-y_fr,-y_fr-F_fr(2)/(795*9.81)*2],[0,1,0]);
-draw_arrow([x_rr,x_rr + F_rr(1)/(795*9.81)*2],[-y_rr,-y_rr-F_rr(2)/(795*9.81)*2],[0,1,0]);
+
 
 axis equal
-xlim([1/track_curvature-8,1/track_curvature+22])
+xlim([1/track_curvature-15,1/track_curvature+5])
+ax.YLim = [-5,-5 + diff(ax.YLim)];
+ann = annotation('textbox',[0.046953937592868,0.229984544049459,0.297176820208024,0.062596599690881],'String','Understeer','Fitboxtotext','on','FontName',font_name,'FontSize',25,'BackgroundColor',[0    0.4470    0.7410],'Color',background_color,'horizontalAlignment','center','verticalAlignment','middle');
+ann = annotation('textbox',[0.030609212481426,0.517465224111283,0.297176820208024,0.062596599690881],'String','Oversteer','Fitboxtotext','on','FontName',font_name,'FontSize',25,'BackgroundColor',[0.8500    0.3250    0.0980],'Color',background_color,'horizontalAlignment','center','verticalAlignment','middle');
 
-ann = annotation('textbox',[0.45-0.5*0.15-0.01,0.85,0.15,0.08],'String',figure_title,'Fitboxtotext','on','FontName',font_name,'FontSize',25,'BackgroundColor',text_color,'Color',background_color,'horizontalAlignment','center','verticalAlignment','middle');
-
-% Draw axes to plot pacejka's curves
-lambda_values = deg2rad(linspace(0,15,100));
-
-ax_fr = axes('Position',[0.6,0.55,0.2*1.2,0.3*1.2],'FontSize',15);
-hold all
-[~,Fy_fr_values] = pacejka_model(-qa0(2)*795*9.81,kappa_fr,lambda_values,readstruct('./neutral-car.xml').front_tire);
-[~,Fy_fr] = pacejka_model(-qa0(2)*795*9.81,kappa_fr,lambda_fr,readstruct('./neutral-car.xml').front_tire);
-
-plot(rad2deg(lambda_values),Fy_fr_values*Ntog,'-k','LineWidth',2);
-plot(-[rad2deg(lambda_fr),rad2deg(lambda_fr)],[0,-Fy_fr*Ntog],'--k','LineWidth',1)
-plot(-rad2deg(lambda_fr), -Fy_fr*Ntog, 'o','MarkerFaceColor',[1,0,0],'MarkerEdgeColor',[1,0,0]/1.5,'MarkerSize',10,'LineWidth',2);
-grid on
-box on
-xlim([0,15]);
-ylim([0,1.4]);
-ax_fr.XTick = 0:1:15;
-ax_fr.XTickLabel(1:end) = {''};
-ax_fr.XTickLabelRotation = 0;
-
-ax_fr.YTick = 0:0.1:1.4;
-ax_fr.YTickLabel(2:2:end) = {''};
-ax_fr.YTickLabelRotation = 0;
-
-title('front lateral force, Fy [g]');
-
-ax_rr = axes('Position',[0.6,0.15,0.2*1.2,0.3*1.2],'FontSize',15);
-hold all
-[~,Fy_rr_values] = pacejka_model(-qa0(4)*795*9.81,kappa_rr,lambda_values,readstruct('./neutral-car.xml').rear_tire);
-[~,Fy_rr] = pacejka_model(-qa0(4)*795*9.81,kappa_rr,lambda_rr,readstruct('./neutral-car.xml').rear_tire);
-
-plot(rad2deg(lambda_values),Fy_rr_values*Ntog,'-k','LineWidth',2);
-plot(-[rad2deg(lambda_rr),rad2deg(lambda_rr)],[0,-Fy_rr*Ntog],'--k','LineWidth',1)
-plot(-rad2deg(lambda_rr), -Fy_rr*Ntog, 'o','MarkerFaceColor',[1,0,0],'MarkerEdgeColor',[1,0,0]/1.5,'MarkerSize',10,'LineWidth',2);
-grid on
-box on
-xlim([0,15]);
-ylim([0,1.4]);
-ax_rr.XTick = 0:1:15;
-ax_rr.XTickLabel(2:2:end) = {''};
-ax_rr.XTickLabelRotation = 0;
-
-ax_rr.YTick = 0:0.1:1.4;
-ax_rr.YTickLabel(2:2:end) = {''};
-ax_rr.YTickLabelRotation = 0;
-xlabel('lateral slip, lambda [deg]');
-title('rear lateral force, Fy [g]');
-
-
-% Draw a car with the velocities
-annotation('textbox',[0.30,0.72,0.3,0.1],'String','Velocities diagram','FontName','Courier','FontSize',20,'horizontalAlignment','center','verticalAlignment','middle','LineStyle','none');
-annotation('line',[0.35,0.55],[0.75,0.75]);
-ax_car = axes('Position',[0.35,0.0,0.2,0.8]);
-ax_car.Visible = 'off';
-hold all
-x_center_of_gravity = 1.8;
-velocity_reference = (150/3.6)*0.5;
-
-plot_f1(0.73,0.0,90,3.6,0.73*2,skin,[1,1,1],0.2,0.25);
-
-% Draw car velocity
-v_car_direction = q0([6,5])/norm(q0([6,5]));
-plot([0,0],[-1,x_center_of_gravity+v_car_direction(2)*3],'--k','LineWidth',1)
-plot_cog(0,x_center_of_gravity);
-plot([0,v_car_direction(1)*3],[x_center_of_gravity,x_center_of_gravity+v_car_direction(2)*3],'-k','LineWidth',1);
-draw_arrow([0,q0(6)/velocity_reference],[x_center_of_gravity,x_center_of_gravity+q0(5)/velocity_reference],[0,0,0]);
-angle_arc_car = linspace(0,atan2(v_car_direction(1),v_car_direction(2)),10);
-plot(2.8*sin(angle_arc_car),x_center_of_gravity+2.8*cos(angle_arc_car),'-k','LineWidth',1);
-text(0.5*v_car_direction(1)*3,x_center_of_gravity+v_car_direction(2)*3+0.2,[num2str(rad2deg(angle_arc_car(end)),'%.1f'),'\circ'],'horizontalAlignment','center','FontName',font_name,'FontSize',12);
-
-% Draw rear right velocity
-v_rr_direction = v_rr/norm(v_rr);
-plot([0.73,0.73],[-1.0,0.0 + v_rr_direction(1)*2.5],'--k','LineWidth',1);
-plot([0.73,0.73 + v_rr_direction(2)*2.5],[0.0,0.0 + v_rr_direction(1)*2.5],'-k','LineWidth',1);
-draw_arrow([0.73,0.73 + v_rr(2)/velocity_reference],[0.0,0.0 + v_rr(1)/velocity_reference],[0,0,0]);
-angle_arc_rr = linspace(0,atan2(v_rr_direction(2),v_rr_direction(1)),10);
-plot(0.73+2.3*sin(angle_arc_rr),0.0+2.3*cos(angle_arc_rr),'-k','LineWidth',1);
-text(0.73+0.5*v_rr_direction(2)*2.5,v_rr_direction(1)*2.5+0.2,[num2str(rad2deg(angle_arc_rr(end)),'%.1f'),'\circ'],'horizontalAlignment','center','FontName',font_name,'FontSize',12);
-
-% Draw rear left velocity
-v_rl_direction = v_rl/norm(v_rl);
-plot([-0.73,-0.73],[-1.0,0.0 + v_rl_direction(1)*2.5],'--k','LineWidth',1);
-plot([-0.73,-0.73 + v_rl_direction(2)*2.5],[0.0,0.0 + v_rl_direction(1)*2.5],'-k','LineWidth',1);
-draw_arrow([-0.73,-0.73 + v_rl(2)/velocity_reference],[0.0,0.0 + v_rl(1)/velocity_reference],[0,0,0]);
-angle_arc_rl = linspace(0,atan2(v_rl_direction(2),v_rl_direction(1)),10);
-plot(-0.73+2.3*sin(angle_arc_rl),0.0+2.3*cos(angle_arc_rl),'-k','LineWidth',1);
-text(-0.73+0.5*v_rl_direction(2)*2.5,v_rl_direction(1)*2.5+0.2,[num2str(rad2deg(angle_arc_rl(end)),'%.1f'),'\circ'],'horizontalAlignment','center','FontName',font_name,'FontSize',12);
-
-% Get steering geometry
-steering_direction = [sin(u0(1)),cos(u0(1))];
-f_steering_direction = @(s)([-0.73,3.6] + steering_direction*s);
-steering_1 = f_steering_direction(-0.6);
-steering_2 = f_steering_direction(v_rl_direction(1)*2.5);
-
-% Draw front left velocity
-v_fl_direction = v_fl/norm(v_fl);
-plot([steering_1(1),steering_2(1)],[steering_1(2),steering_2(2)],'--k','LineWidth',1);
-plot([-0.73,-0.73 + v_fl_direction(2)*2.5],[3.6,3.6 + v_fl_direction(1)*2.5],'-k','LineWidth',1);
-draw_arrow([-0.73,-0.73 + v_fl(2)/velocity_reference],[3.6,3.6 + v_fl(1)/velocity_reference],[0,0,0]);
-angle_arc_fl = linspace(u0(1),atan2(v_fl_direction(2),v_fl_direction(1)),10);
-plot(-0.73+2.3*sin(angle_arc_fl),3.6+2.3*cos(angle_arc_fl),'-k','LineWidth',1);
-text(-0.73+2.7*sin(mean(angle_arc_fl)),3.6+2.7*cos(mean(angle_arc_fl)),[num2str(rad2deg(angle_arc_fl(end)-angle_arc_fl(1)),'%.1f'),'\circ'],'horizontalAlignment','center','FontName',font_name,'FontSize',12);
-
-% Draw front right velocity
-v_fr_direction = v_fr/norm(v_fr);
-plot([steering_1(1),steering_2(1)]+0.73*2,[steering_1(2),steering_2(2)],'--k','LineWidth',1);
-plot([0.73,0.73 + v_fr_direction(2)*2.5],[3.6,3.6 + v_fr_direction(1)*2.5],'-k','LineWidth',1);
-draw_arrow([0.73,0.73 + v_fr(2)/velocity_reference],[3.6,3.6 + v_fr(1)/velocity_reference],[0,0,0]);
-angle_arc_fr = linspace(u0(1),atan2(v_fr_direction(2),v_fr_direction(1)),10);
-plot(0.73+2.3*sin(angle_arc_fr),3.6+2.3*cos(angle_arc_fr),'-k','LineWidth',1);
-text(0.73+2.7*sin(mean(angle_arc_fr)),3.6+2.7*cos(mean(angle_arc_fr)),[num2str(rad2deg(angle_arc_fr(end)-angle_arc_fr(1)),'%.1f'),'\circ'],'horizontalAlignment','center','FontName',font_name,'FontSize',12);
-axis equal
-xlim([-2.5,2.5])
-
-% Annotate forces
-% FL
-text(0.73-2.7,4.6-0.5,{'vertical', ['load: ',num2str(-qa0(1),'%.1f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
-text(0.73-2.7,4.6-1.5,{'lateral', ['grip: ',num2str(norm(F_fl)/(795*9.81),'%.2f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
-
-% FR
-text(0.73+1.2,4.6-0.5,{'vertical', ['load: ',num2str(-qa0(2),'%.1f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
-text(0.73+1.2,4.6-1.5,{'lateral', ['grip: ',num2str(-Fy_fr/(795*9.81),'%.2f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
-
-% RL
-text(0.73-2.7,1-0.5,{'vertical', ['load: ',num2str(-qa0(3),'%.1f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
-text(0.73-2.7,1-1.5,{'lateral', ['grip: ',num2str(abs(F_rl(2))/(795*9.81),'%.2f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
-
-% RR
-text(0.73+1.2,1-0.5,{'vertical', ['load: ',num2str(-qa0(4),'%.1f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
-text(0.73+1.2,1-1.5,{'lateral', ['grip: ',num2str(-Fy_rr/(795*9.81),'%.2f'),'g']},'horizontalAlignment','center','FontSize',13,'FontName',font_name);
 end
 
 function handles = draw_arrow(x,y,color)
