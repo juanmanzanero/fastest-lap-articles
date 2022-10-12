@@ -52,7 +52,7 @@ h = figure('Color',background_color);
 if ismac
     h.Position = [196   471   975   226];
 elseif ispc
-    h.Position = [196         383        1620         314];
+    h.Position = [196         311        1461         386];
 end
 plot(run_telemetry.s_ref+40,run_telemetry.speed_ref,'LineWidth',2)
 hold on
@@ -64,6 +64,8 @@ title('Simulation - last section of Suzuka with DRS','Color',text_color)
 set(gca,'FontSize',20);
 
 ax = h.CurrentAxes;
+ax.Position(2) = 0.14;
+ax.Position(4) = 0.74;
 ylim([50,350])
 yticks(50:25:350);
 xticks([2500:125:5800])
@@ -100,7 +102,7 @@ h = figure('Color',background_color);
 if ismac
     h.Position = [196   471   975   226];
 elseif ispc
-    h.Position = [196         383        1620         314];
+    h.Position = [196         311        1461         386];
 end
 hold on
 plot(s,max(0,run_without_drs.run.throttle)*100,'LineWidth',2,'Color',[0.8500    0.3250    0.0980])
@@ -111,6 +113,8 @@ title('Throttle','Color',text_color)
 set(gca,'FontSize',20);
 
 ax = h.CurrentAxes;
+ax.Position(2) = 0.14;
+ax.Position(4) = 0.74;
 ylim([-5,105])
 yticks(0:10:100);
 xticks([4000:125:5400])
@@ -133,8 +137,20 @@ box on
 set(h, 'InvertHardcopy', 'off')
 print(h,'throttle_plot.png','-dpng','-r300')
 
-
-
+% Compare the trajectories
+h = figure('Color',[1,1,1]);
+hold all
+plot(run_without_drs.run.x(1000:end), -run_without_drs.run.y(1000:end),'LineWidth',4,'Color',[0.8500    0.3250    0.0980]);
+plot(run_with_drs.run.x(1000:end), -run_with_drs.run.y(1000:end),'LineWidth',4,'Color',[0.9290    0.6940    0.1250])
+legend({'Original simulation','Simulation with DRS'},'AutoUpdate','off','Location','northwest','TextColor',[0,0,0],'Color',[1,1,1],'FontSize',15,'EdgeColor',[1,1,1])
+patch([run_with_drs.x_left(1000:end),run_with_drs.x_right(1000:end)],[run_with_drs.y_left(1000:end),run_with_drs.y_right(1000:end)],[0.15 0.15 0.15])
+plot(run_without_drs.run.x(1000:end), -run_without_drs.run.y(1000:end),'LineWidth',2,'Color',[0.8500    0.3250    0.0980]);
+plot(run_with_drs.run.x(1000:end), -run_with_drs.run.y(1000:end),'LineWidth',2,'Color',[0.9290    0.6940    0.1250])
+axis equal
+ylim([ -180.1095   49.6023])
+h.CurrentAxes.Visible = 'off';
+set(h, 'InvertHardcopy', 'off')
+print(h,'trajectories_plot.png','-dpng','-r300')
 function clean(fastest_lap)
 
 if libisloaded(fastest_lap)
