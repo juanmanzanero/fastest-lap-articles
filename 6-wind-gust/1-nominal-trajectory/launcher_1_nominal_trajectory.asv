@@ -1,0 +1,55 @@
+global fastest_lap
+
+fastest_lap = 'flap';
+
+if ismac
+    fastest_lap_path = '/Users/juanmanzanero/Documents/software/fastest-lap/';
+    fastest_lap_library_path = [fastest_lap_path,'build/lib/'];
+    fastest_lap_version = '';
+    fastest_lap_suffix = 'dylib';
+elseif ispc
+    fastest_lap_path = 'C:\Users\jmanz\Documents\software\fastest-lap-vs\fastest-lap';
+    fastest_lap_library_path = 'C:\Users\jmanz\Documents\software\fastest-lap-vs\vs\x64\Release';
+    fastest_lap_version = '-0.4';
+    fastest_lap_suffix = 'dll';
+else
+    fastest_lap_path = '/home/r660/r660391/storage/fastest-lap/';
+    fastest_lap_library_path = [fastest_lap_path,'build/lib/'];
+    fastest_lap_version = '';
+    fastest_lap_suffix = 'so';
+end
+
+addpath([fastest_lap_path,'/src/main/matlab']);
+
+% (1) Load library
+if libisloaded(fastest_lap)
+    unloadlibrary(fastest_lap)
+end
+
+loadlibrary([fastest_lap_library_path,filesep,'libfastestlapc',fastest_lap_version,'.',fastest_lap_suffix],...
+    [fastest_lap_path,'/src/main/c/fastestlapc.h'],'alias',fastest_lap);
+
+calllib(fastest_lap,'set_print_level',2);
+
+% (2) Load circuit
+circuit_name = 'circuit';
+track_file = 'cota_uniform_2000.xml';
+calllib(fastest_lap,'create_track_from_xml',circuit_name, track_file);
+
+% (2.1) Get circuit data
+n_points = calllib(fastest_lap, 'track_download_number_of_points', circuit_name);
+track_length = calllib(fastest_lap, 'track_download_length', circuit_name);
+s = calllib(fastest_lap, 'track_download_data',zeros(1,n_points), circuit_name, n_points, 'arclength');
+
+% (3) Load car
+vehicle_name = 'car';
+vehicle_file = 'sainz_cota_qp_2022.xml';
+calllib(fastest_lap, 'create_vehicle_from_xml', vehicle_name, vehicle_file);
+
+% (4) Run optimal laptime
+options =           '<options>';
+options = [options, '    <output_variables>'];
+options = [options, '        <prefix> run/ </pre'];
+options = [options, '    </output_variables>'];
+options = [options, '</options>'];
+calllib(fastest_lap, 'optimal_laptime', vehicle_name, circuit_name, n_points, s, options);
