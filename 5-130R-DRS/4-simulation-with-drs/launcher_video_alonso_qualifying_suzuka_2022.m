@@ -40,14 +40,11 @@ if ( steps_1_to_3 )
     cl = 2.7101908445246665;
     x_press = - 0.092900898328350232;
 
-    cd_drs = (1-0.25)*cd;
-    cl_drs = (1-0.25)*cl;
-    x_cp_rw = -0.5;
-    x_press_drs = (cl*(1.5216093891550388+x_press) - 0.2*cl*x_cp_rw)/cl_drs - 1.5216093891550388;
-
-
-    drs_mesh = [0.0,10.0,570.0,580.0,s(i_drs_start)-10,s(i_drs_start), s(i_drs_end)-10, s(i_drs_end), 7000.0];
-    drs_vars = [  0,   1,    1,    0,                0,             1,               1,            0,      0]; 
+    cd_drs = 0.744011;
+    cl_drs = 2.288312;
+    x_press_drs = 0.262680;
+    drs_mesh = [0.0,s(i_drs_start)-10,s(i_drs_start), s(i_drs_end)-10, s(i_drs_end), 7000.0];
+    drs_vars = [  0,                0,             1,               1,            0,      0]; 
     calllib("libfastestlapc", "vehicle_declare_new_variable_parameter", vehicle, 'vehicle/chassis/aerodynamics/cd', 'cd;cd_drs',  2, [cd,cd_drs], numel(drs_mesh), drs_vars, drs_mesh);
     calllib("libfastestlapc", "vehicle_declare_new_variable_parameter", vehicle, 'vehicle/chassis/aerodynamics/cl', 'cl;cl_drs',  2, [cl,cl_drs], numel(drs_mesh), drs_vars, drs_mesh);
     calllib("libfastestlapc", "vehicle_declare_new_variable_parameter", vehicle, 'vehicle/chassis/pressure_center/x', 'x_press;x_press_drs',  2, [x_press,x_press_drs], numel(drs_mesh), drs_vars, drs_mesh);
