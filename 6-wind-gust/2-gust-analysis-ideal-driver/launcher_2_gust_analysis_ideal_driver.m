@@ -1,16 +1,17 @@
 global fastest_lap
-global background_color text_color blue font_name
+global background_color text_color blue font_name green yellow
 rerun = false;
 
-background_color =  [13/255, 17/255, 23/255];
+
 text_color = [201,209,217]/255;
 blue   = [0   0.447000000000000   0.741];
-
-
+green = [  0.4660    0.6740    0.1880];
+yellow = hex2rgb('F2EECB');
+background_color =  [13/255, 17/255, 23/255];
 
 if rerun
     fastest_lap = 'flap';
-    track_file = 'cota_uniform_1000.xml';
+    track_file = 'cota_uniform_2000.xml';
     vehicle_file = 'neutral-car.xml';
     
     if ismac
@@ -188,7 +189,7 @@ if plot_figures
     % (4) Write a video
     corner_study.simulation_data{i_best}.x_center = interp1(s(corner_study.i_start:corner_study.i_finish),x_center(corner_study.i_start:corner_study.i_finish),corner_study.s)';
     corner_study.simulation_data{i_best}.y_center = interp1(s(corner_study.i_start:corner_study.i_finish),y_center(corner_study.i_start:corner_study.i_finish),corner_study.s)';
-    draw_frame(corner_study.simulation_data{i_best}, readstruct('neutral-car.xml'), s, x_left, x_right, y_left, y_right, x_center, y_center, theta, nl, nr, [s_wind_start,s_wind_end],[sin(wind_angles(i_best)),cos(wind_angles(i_best))], 100);
+    draw_frame(corner_study.simulation_data{i_best}, readstruct('neutral-car.xml'), s, x_left, x_right, y_left, y_right, x_center, y_center, theta, nl, nr, [s_wind_start,s_wind_end],[sin(wind_angles(i_best)),cos(wind_angles(i_best))], 100, corner_study.simulation_data{i_best}.time - calm_simulation.corner_study.simulation_data.time);
     
 end
 
@@ -381,14 +382,15 @@ run_data = array2table(variable_data,'VariableNames', [all_names,{'laptime'}]);
 
 end
 
-function draw_frame(simulation_data, vehicle_data, s_track,x_left, x_right, y_left, y_right, x_center, y_center, theta, nl, nr, s_wind_delimiters, wind, i_frame)
+function draw_frame(simulation_data, vehicle_data, s_track,x_left, x_right, y_left, y_right, x_center, y_center, theta, nl, nr, s_wind_delimiters, wind, i_frame, dt_wrt_calm_simulation)
+global background_color text_color blue font_name green yellow
 
 % (1) Plot car and track
 x = simulation_data.("chassis.position.x");
 y = simulation_data.("chassis.position.y");
 
 screen_size = get(0,'ScreenSize');
-h = figure('Position',[0 0 screen_size(3) 1080.0/1920.0*screen_size(3)]);
+h = figure('Position',[0 0 screen_size(3) 1080.0/1920.0*screen_size(3)],'Color',yellow);
 hold on;
 
 % (1) Plot track
@@ -471,10 +473,9 @@ plot_tires(simulation_data,i_frame,vehicle_data,Fz_max, understeer_ind);
 plot_aerodynamic_bars(simulation_data,i_frame,vehicle_data);
 
 % (n.4) Track map
-%plot_track_map(x_center,y_center,x(i_frame),-y(i_frame));
+plot_track_map(x_center,y_center,x(i_frame),-y(i_frame));
 
-% (n.5) Telemetry
-%plot_telemetry(i,t,simulation_data)
+plot_delta_laptime(dt_wrt_calm_simulation(i_frame));
 
 ax_dashboard.XLim = [-3.3,  8.1];
 ax_dashboard.YLim = [ax_dashboard.YLim(1)-ax_dashboard.YLim(2)+1.2,  1.2];
@@ -482,10 +483,11 @@ ax_dashboard.Visible = 'off';
 end
 
 function plot_throttle_brake(throttle_raw,delta_raw,brake_bias_raw)
+global background_color text_color blue font_name green yellow
 
 % Trim throttle
 throttle_raw = min(max(throttle_raw,-1),1);
-patch([-0.2,-0.2,1.2,1.2,-0.2],[-0.1,1.1,1.1,-0.1,-0.1],[1,1,1])
+patch([-0.2,-0.2,1.2,1.2,-0.2],[-0.1,1.1,1.1,-0.1,-0.1],yellow)
 plot([-0.2,-0.2,1.2,1.2,-0.2],[-0.1,1.1,1.1,-0.1,-0.1],'-k','LineWidth',3)
 
 % Plot throttle and brake
@@ -537,6 +539,7 @@ axis equal
 end
 
 function plot_tires(simulation_data,i,vehicle_data,Fz_max, understeer_ind)
+global background_color text_color blue font_name green yellow
 
 ref_load_1 = vehicle_data.front_tire.reference_load_1.Text;
 ref_load_2 = vehicle_data.front_tire.reference_load_2.Text;
@@ -552,7 +555,7 @@ r_rl = r_rr - [track,0.0];
 r_fr = r_rr + [0,wb];
 r_fl = r_fr - [track,0.0];
 
-patch([xlb,xlb,xub,xub,xlb],[-2.5,1.1,1.1,-2.5,-2.5],[1,1,1]);
+patch([xlb,xlb,xub,xub,xlb],[-2.5,1.1,1.1,-2.5,-2.5],yellow);
 plot([xlb,xlb,xub,xub,xlb],[-2.5,1.1,1.1,-2.5,-2.5],'-k','LineWidth',3);
 
 
@@ -678,7 +681,7 @@ else
 end
 
 % Draw the velocity
-velocity_scaling = 1/(100/3.6);
+velocity_scaling = 1/(150/3.6);
 draw_arrow([xlb+0.5*xspan,xlb+0.5*xspan+simulation_data.("chassis.velocity.y")(i)*velocity_scaling],[-1.8+0.85,-1.8+.85+simulation_data.("chassis.velocity.x")(i)*velocity_scaling],0.1,4,[ 0    0.4470    0.7410]);
 draw_arrow([xlb+0.5*xspan-simulation_data.("chassis.aerodynamics.aerodynamic_velocity.y")(i)*velocity_scaling,xlb+0.5*xspan-simulation_data.("chassis.aerodynamics.aerodynamic_velocity.y")(i)*velocity_scaling+simulation_data.("chassis.aerodynamics.wind_velocity_body.y")(i)*velocity_scaling],[-1.8+0.85-simulation_data.("chassis.aerodynamics.aerodynamic_velocity.x")(i)*velocity_scaling,-1.8+.85-simulation_data.("chassis.aerodynamics.aerodynamic_velocity.x")(i)*velocity_scaling+simulation_data.("chassis.aerodynamics.wind_velocity_body.x")(i)*velocity_scaling],0.3,4,[0,1,0])
 draw_arrow([xlb+0.5*xspan,xlb+0.5*xspan-simulation_data.("chassis.aerodynamics.aerodynamic_velocity.y")(i)*velocity_scaling],[-1.8+0.85,-1.8+.85-simulation_data.("chassis.aerodynamics.aerodynamic_velocity.x")(i)*velocity_scaling],0.1,4,[1,0,0])
@@ -748,36 +751,191 @@ surface(x_surf,y_surf,zeros(2,100),col, 'facecol','interp',...
 end
 
 function plot_aerodynamic_bars(simulation_data,i,vehicle_data)
-global background_color text_color blue font_name
+global background_color text_color blue font_name green yellow
 
 max_lift = 2.4e4;
 u_body = [simulation_data.("chassis.velocity.x")(i),simulation_data.("chassis.velocity.y")(i)];
+p_dyn = 0.5*vehicle_data.chassis.aerodynamics.rho*norm(u_body)^2;
 lift_without_wind = 0.5*vehicle_data.chassis.aerodynamics.rho*simulation_data.("chassis.velocity.x")(i)*simulation_data.("chassis.velocity.x")(i)*vehicle_data.chassis.aerodynamics.area*vehicle_data.chassis.aerodynamics.cl;
 drag_without_wind = 0.5*vehicle_data.chassis.aerodynamics.rho*norm(u_body)*u_body(1)*vehicle_data.chassis.aerodynamics.area*vehicle_data.chassis.aerodynamics.cd;
-patch([1.2,1.2,3.2,3.2,1.2],[-0.1,1.1,1.1,-0.1,-0.1],[1,1,1])
+patch([1.2,1.2,3.2,3.2,1.2],[-0.1,1.1,1.1,-0.1,-0.1],yellow)
 plot([1.2,1.2,3.2,3.2,1.2],[-0.1,1.1,1.1,-0.1,-0.1],'-k','LineWidth',3)
 
 text(1.4+0.1,0.1,'dwf','horizontalAlignment','center','verticalAlignment','middle','FontSize',15);
 plot(1.4+[0,0,0.2,0.2,0],[0.2,1,1,0.2,0.2],'-k');
-patch(1.4+[0,0,0.2,0.2,0],[0.2,0.2+0.8*simulation_data.("chassis.aerodynamics.lift")(i)/max_lift,0.2+0.8*simulation_data.("chassis.aerodynamics.lift")(i)/max_lift,0.2,0.2],[1,0,0]);
+patch(1.4+[0,0,0.2,0.2,0],[0.2,0.2+0.8*simulation_data.("chassis.aerodynamics.lift")(i)/max_lift,0.2+0.8*simulation_data.("chassis.aerodynamics.lift")(i)/max_lift,0.2,0.2],[1,1,0]);
 plot(1.4+[0,0.04],0.2+0.8*[0.25,0.25],'-k')
 plot(1.4+[0,0.04],0.2+0.8*[0.5,0.5],'-k')
 plot(1.4+[0,0.04],0.2+0.8*[0.75,0.75],'-k')
 plot(1.4+[0.16,0.2],0.2+0.8*[0.25,0.25],'-k')
 plot(1.4+[0.16,0.2],0.2+0.8*[0.5,0.5],'-k')
 plot(1.4+[0.16,0.2],0.2+0.8*[0.75,0.75],'-k')
-plot(1.4+[0,0.2],0.2+0.8*lift_without_wind/max_lift + [0,0],'Color',blue,'LineWidth',2);
+plot(1.4+[-0.05,0.25],0.2+0.8*lift_without_wind/max_lift + [0,0],'Color',blue,'LineWidth',1);
 
 text(1.75+0.1,0.1,'drag','horizontalAlignment','center','verticalAlignment','middle','FontSize',15);
 plot(1.75+[0,0,0.2,0.2,0],[0.2,1,1,0.2,0.2],'-k');
-patch(1.75+[0,0,0.2,0.2,0],[0.2,0.2-0.8*simulation_data.("chassis.aerodynamics.drag.x")(i)/max_lift,0.2-0.8*simulation_data.("chassis.aerodynamics.drag.x")(i)/max_lift,0.2,0.2],[1,0,0]);
+patch(1.75+[0,0,0.2,0.2,0],[0.2,0.2-0.8*simulation_data.("chassis.aerodynamics.drag.x")(i)/max_lift,0.2-0.8*simulation_data.("chassis.aerodynamics.drag.x")(i)/max_lift,0.2,0.2],[0,1,0]);
 plot(1.75+[0,0.04],0.2+0.8*[0.25,0.25],'-k')
 plot(1.75+[0,0.04],0.2+0.8*[0.5,0.5],'-k')
 plot(1.75+[0,0.04],0.2+0.8*[0.75,0.75],'-k')
 plot(1.75+[0.16,0.2],0.2+0.8*[0.25,0.25],'-k')
 plot(1.75+[0.16,0.2],0.2+0.8*[0.5,0.5],'-k')
 plot(1.75+[0.16,0.2],0.2+0.8*[0.75,0.75],'-k')
-plot(1.75+[0,0.2],0.2+0.8*drag_without_wind/max_lift + [0,0],'Color',blue,'LineWidth',2);
+plot(1.75+[-0.05,0.25],0.2+0.8*drag_without_wind/max_lift + [0,0],'Color',blue,'LineWidth',1);
 
+delta_scx = abs(simulation_data.("chassis.aerodynamics.drag.x")(i)/p_dyn) - abs(drag_without_wind)/p_dyn;
+
+if delta_scx >= 0
+    delta_scx_str = ['+',num2str(delta_scx,'%.2f')];
+    delta_scx_color = [1,0,0];
+else
+    delta_scx_str = [num2str(delta_scx,'%.2f')];
+    delta_scx_color = green;
+end
+
+delta_scz = abs(simulation_data.("chassis.aerodynamics.lift")(i)/p_dyn) - abs(lift_without_wind)/p_dyn;
+if delta_scz >= 0
+    delta_scz_str = ['+',num2str(delta_scz,'%.2f')];
+    delta_scz_color = green;
+else
+    delta_scz_str = [num2str(delta_scz,'%.2f')];
+    delta_scz_color = [1,0,0];
+end
+
+text(2.1,0.85,['SCz: ',num2str(simulation_data.("chassis.aerodynamics.lift")(i)/p_dyn,'%.2f')],'FontSize',20)
+text(2.1,0.65,['         (',delta_scz_str,')'],'FontSize',20,'Color',delta_scz_color);
+text(2.1,0.35,['SCx: ',num2str(-simulation_data.("chassis.aerodynamics.drag.x")(i)/p_dyn,'%.2f')],'FontSize',20)
+text(2.1,0.15,['         (',delta_scx_str,')'],'FontSize',20,'Color',delta_scx_color);
 
 end
+
+function plot_track_map(x_center, y_center, x, y)
+new_width = 1.5;
+x_max = max(x_center);
+x_min = min(x_center);
+
+y_max = max(y_center);
+y_min = min(y_center);
+
+% Goes from [6,8]x[-1,0]
+x_max_new = 8;
+x_min_new = 8 - new_width*(x_max-x_min)/(y_max-y_min);
+plot(x_min_new + (x_center-x_min)*(x_max_new-x_min_new)/(x_max-x_min),-0.4 -new_width + new_width*(y_center-y_min)/(y_max-y_min),'Color',[0.95,0.95,0.95],'LineWidth',5);
+plot(x_min_new + (x_center-x_min)*(x_max_new-x_min_new)/(x_max-x_min),-0.4 -new_width + new_width*(y_center-y_min)/(y_max-y_min),'Color','#0072BD','LineWidth',2);
+plot(x_min_new + (x-x_min)*(x_max_new-x_min_new)/(x_max-x_min),-0.4 -new_width + new_width*(y-y_min)/(y_max-y_min),'o','Color','#D95319','MarkerFaceColor','#D95319','MarkerSize',10);
+end
+
+function plot_delta_laptime(dt_wrt_calm_simulation)
+
+patch([3.2,3.2,8,8,3.2],[-0.1,1.1,1.1,-0.1,-0.1],hex2rgb('F2EECB'))
+plot([3.2,3.2,8,8,3.2],[-0.1,1.1,1.1,-0.1,-0.1],'-k','LineWidth',3)
+
+end
+
+function [ rgb ] = hex2rgb(hex,range)
+% hex2rgb converts hex color values to rgb arrays on the range 0 to 1. 
+% 
+% 
+% * * * * * * * * * * * * * * * * * * * * 
+% SYNTAX:
+% rgb = hex2rgb(hex) returns rgb color values in an n x 3 array. Values are
+%                    scaled from 0 to 1 by default. 
+%                    
+% rgb = hex2rgb(hex,256) returns RGB values scaled from 0 to 255. 
+% 
+% 
+% * * * * * * * * * * * * * * * * * * * * 
+% EXAMPLES: 
+% 
+% myrgbvalue = hex2rgb('#334D66')
+%    = 0.2000    0.3020    0.4000
+% 
+% 
+% myrgbvalue = hex2rgb('334D66')  % <-the # sign is optional 
+%    = 0.2000    0.3020    0.4000
+% 
+%
+% myRGBvalue = hex2rgb('#334D66',256)
+%    = 51    77   102
+% 
+% 
+% myhexvalues = ['#334D66';'#8099B3';'#CC9933';'#3333E6'];
+% myrgbvalues = hex2rgb(myhexvalues)
+%    =   0.2000    0.3020    0.4000
+%        0.5020    0.6000    0.7020
+%        0.8000    0.6000    0.2000
+%        0.2000    0.2000    0.9020
+% 
+% 
+% myhexvalues = ['#334D66';'#8099B3';'#CC9933';'#3333E6'];
+% myRGBvalues = hex2rgb(myhexvalues,256)
+%    =   51    77   102
+%       128   153   179
+%       204   153    51
+%        51    51   230
+% 
+% HexValsAsACharacterArray = {'#334D66';'#8099B3';'#CC9933';'#3333E6'}; 
+% rgbvals = hex2rgb(HexValsAsACharacterArray)
+% 
+% * * * * * * * * * * * * * * * * * * * * 
+% Chad A. Greene, April 2014
+%
+% Updated August 2014: Functionality remains exactly the same, but it's a
+% little more efficient and more robust. Thanks to Stephen Cobeldick for
+% the improvement tips. In this update, the documentation now shows that
+% the range may be set to 256. This is more intuitive than the previous
+% style, which scaled values from 0 to 255 with range set to 255.  Now you
+% can enter 256 or 255 for the range, and the answer will be the same--rgb
+% values scaled from 0 to 255. Function now also accepts character arrays
+% as input. 
+% 
+% * * * * * * * * * * * * * * * * * * * * 
+% See also rgb2hex, dec2hex, hex2num, and ColorSpec. 
+% 
+
+%% Input checks:
+
+assert(nargin>0&nargin<3,'hex2rgb function must have one or two inputs.') 
+
+if nargin==2
+    assert(isscalar(range)==1,'Range must be a scalar, either "1" to scale from 0 to 1 or "256" to scale from 0 to 255.')
+end
+
+%% Tweak inputs if necessary: 
+
+if iscell(hex)
+    assert(isvector(hex)==1,'Unexpected dimensions of input hex values.')
+    
+    % In case cell array elements are separated by a comma instead of a
+    % semicolon, reshape hex:
+    if isrow(hex)
+        hex = hex'; 
+    end
+    
+    % If input is cell, convert to matrix: 
+    hex = cell2mat(hex);
+end
+
+if strcmpi(hex(1,1),'#')
+    hex(:,1) = [];
+end
+
+if nargin == 1
+    range = 1; 
+end
+
+%% Convert from hex to rgb: 
+
+switch range
+    case 1
+        rgb = reshape(sscanf(hex.','%2x'),3,[]).'/255;
+
+    case {255,256}
+        rgb = reshape(sscanf(hex.','%2x'),3,[]).';
+    
+    otherwise
+        error('Range must be either "1" to scale from 0 to 1 or "256" to scale from 0 to 255.')
+end
+
+end
+

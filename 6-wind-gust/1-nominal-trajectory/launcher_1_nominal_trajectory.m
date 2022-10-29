@@ -1,9 +1,9 @@
 global fastest_lap
 
 fastest_lap = 'flap';
-track_file = 'cota_uniform_1000.xml';
-vehicle_file = 'neutral-car.xml';
-skip_run_full_optimal_laptime = true;
+track_file = 'cota_uniform_2000.xml';
+vehicle_file = '../neutral-car.xml';
+skip_run_full_optimal_laptime = false;
 
 if ismac
     fastest_lap_path = '/Users/juanmanzanero/Documents/software/fastest-lap/';
