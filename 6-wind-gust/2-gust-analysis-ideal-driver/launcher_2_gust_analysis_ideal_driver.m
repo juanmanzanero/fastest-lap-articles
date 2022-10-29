@@ -1,12 +1,18 @@
 global fastest_lap
+global background_color text_color blue font_name
+rerun = false;
 
-rerun = true;
+background_color =  [13/255, 17/255, 23/255];
+text_color = [201,209,217]/255;
+blue   = [0   0.447000000000000   0.741];
+
+
 
 if rerun
     fastest_lap = 'flap';
     track_file = 'cota_uniform_1000.xml';
     vehicle_file = 'neutral-car.xml';
-
+    
     if ismac
         fastest_lap_path = '/Users/juanmanzanero/Documents/software/fastest-lap/';
         fastest_lap_library_path = [fastest_lap_path,'build/lib/'];
@@ -23,28 +29,28 @@ if rerun
         fastest_lap_version = '';
         fastest_lap_suffix = 'so';
     end
-
+    
     addpath([fastest_lap_path,'/src/main/matlab']);
-
+    
     % (1) Load library
     if libisloaded(fastest_lap)
         unloadlibrary(fastest_lap)
     end
-
+    
     loadlibrary([fastest_lap_library_path,filesep,'libfastestlapc',fastest_lap_version,'.',fastest_lap_suffix],...
         [fastest_lap_path,'/src/main/c/fastestlapc.h'],'alias',fastest_lap);
-
+    
     calllib(fastest_lap,'set_print_level',2);
-
+    
     % (2) Load circuit
     circuit_name = 'circuit';
     calllib(fastest_lap,'create_track_from_xml',circuit_name, track_file);
-
+    
     % (2.1) Get circuit data
     n_points = calllib(fastest_lap, 'track_download_number_of_points', circuit_name);
     track_length = calllib(fastest_lap, 'track_download_length', circuit_name);
     s = calllib(fastest_lap, 'track_download_data',zeros(1,n_points), circuit_name, n_points, 'arclength');
-
+    
     x_left = calllib(fastest_lap,'track_download_data',zeros(1,n_points), circuit_name, n_points,'left.x');
     y_left = calllib(fastest_lap,'track_download_data',zeros(1,n_points), circuit_name, n_points,'left.y');
     x_right = calllib(fastest_lap,'track_download_data',zeros(1,n_points), circuit_name, n_points,'right.x');
@@ -54,23 +60,23 @@ if rerun
     theta    = calllib(fastest_lap,'track_download_data',zeros(1,n_points), circuit_name, n_points,'heading-angle');
     nl    = calllib(fastest_lap,'track_download_data',zeros(1,n_points), circuit_name, n_points,'distance-left-boundary');
     nr    = calllib(fastest_lap,'track_download_data',zeros(1,n_points), circuit_name, n_points,'distance-right-boundary');
-
+    
     % (3) Load car
     vehicle_name = 'car';
     calllib(fastest_lap, 'create_vehicle_from_xml', vehicle_name, vehicle_file);
-
+    
     % (4) Load optimal laptime for the full circuit
     simulation_data = load('../1-nominal-trajectory/full_lap').simulation_data;
-
+    
     % (5) Run the corner with wind
     calllib(fastest_lap,'set_print_level',0)
     wind_angles = linspace(0,2*pi,200);
-
+    
     corner_study = struct('s_start', 2300, 's_finish', 2800, 'n_points', 200);
     [~,corner_study.i_start] = min(abs(s-corner_study.s_start));
     [~,corner_study.i_finish] = min(abs(s-corner_study.s_finish));
     corner_study.s = linspace(s(corner_study.i_start), s(corner_study.i_finish), corner_study.n_points);
-
+    
     % (5.1) Write the initial condition
     corner_study.q_start = [simulation_data.("front-axle.left-tire.kappa")(corner_study.i_start), ...
         simulation_data.("front-axle.right-tire.kappa")(corner_study.i_start), ...
@@ -82,20 +88,20 @@ if rerun
         0.0, ...
         simulation_data.("road.lateral-displacement")(corner_study.i_start), ...
         simulation_data.("road.track-heading-angle")(corner_study.i_start)];
-
+    
     corner_study.qa_start = [simulation_data.("chassis.Fz_fl")(corner_study.i_start), ...
         simulation_data.("chassis.Fz_fr")(corner_study.i_start), ...
         simulation_data.("chassis.Fz_rl")(corner_study.i_start), ...
         simulation_data.("chassis.Fz_rr")(corner_study.i_start)];
-
+    
     corner_study.u_start = [simulation_data.("front-axle.steering-angle")(corner_study.i_start), ...
         simulation_data.("rear-axle.boost")(corner_study.i_start), ...
         simulation_data.("chassis.throttle")(corner_study.i_start), ...
         simulation_data.("chassis.brake-bias")(corner_study.i_start)];
-
-
+    
+    
     for i_wind = 1:numel(wind_angles)
-
+        
         vehicle_copy = 'vehicle_copy';
         calllib(fastest_lap,'copy_variable',vehicle_name, vehicle_copy);
         northward_wind_intensity = 50*cos(wind_angles(i_wind))/3.6;
@@ -105,12 +111,12 @@ if rerun
         wind_mesh = [0,s_wind_start, s_wind_start + 10, s_wind_end - 10, s_wind_end, track_length];
         calllib(fastest_lap, "vehicle_declare_new_variable_parameter", vehicle_copy, 'vehicle/chassis/aerodynamics/wind_velocity/northward', 'no_north_wind;full_north_wind',  2, [0,northward_wind_intensity], numel(wind_mesh), [0,0,1,1,0,0], wind_mesh);
         calllib(fastest_lap, "vehicle_declare_new_variable_parameter", vehicle_copy, 'vehicle/chassis/aerodynamics/wind_velocity/eastward', 'no_east_wind;full_east_wind',  2, [0,eastward_wind_intensity], numel(wind_mesh), [0,0,1,1,0,0], wind_mesh);
-
+        
         calllib(fastest_lap,'create_vector', 'initial_condition/state', numel(corner_study.q_start), corner_study.q_start);
         calllib(fastest_lap,'create_vector', 'initial_condition/algebraic_state', numel(corner_study.qa_start), corner_study.qa_start);
         calllib(fastest_lap,'create_vector', 'initial_condition/control', numel(corner_study.u_start), corner_study.u_start);
         calllib(fastest_lap, 'vehicle_set_parameter', vehicle_name, 'vehicle/chassis/brake_bias', simulation_data.("chassis.brake-bias")(corner_study.i_start));
-
+        
         % (5.1) Write options
         options =          '<options>';
         options = [options,    '<closed_simulation> false </closed_simulation>'];
@@ -124,320 +130,229 @@ if rerun
         options = [options,    '</output_variables>'];
         options = [options,    '<sigma> 0.5 </sigma>'];
         options = [options,'</options>'];
-
+        
         % (5.2) Run
         calllib(fastest_lap,'optimal_laptime', vehicle_copy, circuit_name, numel(corner_study.s), corner_study.s, options);
-
+        
         % (5.3) Download data
         corner_study.simulation_data{i_wind} = get_run_data('run_corner/', numel(corner_study.s));
-
+        
         % (5.4) Cleanup
         calllib(fastest_lap,'delete_variable','run_corner/*');
         calllib(fastest_lap,'delete_variable','initial_condition/*');
         calllib(fastest_lap,'delete_variable',vehicle_copy);
-
+        
         % (5.5) Display stats
         fprintf('Wind angle: %f       Delta laptime: %f\n',rad2deg(wind_angles(i_wind)), corner_study.simulation_data{i_wind}.time(end) - 9.362692319028884);
     end
-
+    
     save('autosave_longer_gust')
-
+    
 else
-    load('autosave_better_gust')
+    load('autosave_longer_gust')
 end
 
 calm_simulation = load('../1-nominal-trajectory/air_in_calm_simulation.mat');
 
-plot_figures = false;
+plot_figures = true;
 
 if plot_figures
     %
     % Plotting
     %
-    background_color =  [13/255, 17/255, 23/255];
-    text_color = [201,209,217]/255;
-    blue   = [0   0.447000000000000   0.741];
-
     if ismac
         font_name = 'Formula1';
     else
         font_name = 'Formula1 Display Regular';
     end
     set(groot,'defaultAxesFontName',font_name);
-
-    % % (1) Plot delta time vs wind angle
+    
     delta_time = zeros(1,numel(wind_angles));
     for i = 1 : numel(wind_angles)
         delta_time(i) = corner_study.simulation_data{i}.time(end) - 9.362692319028884;
     end
     delta_time(1) = delta_time(end);
-    % h = figure('Position',[546   381   838   597]);
-    % h.Color = background_color;
-    % delta_time_pos = delta_time;
-    % delta_time_pos(delta_time_pos < 0) = NaN;
-    % nan_position = find(isnan(delta_time_pos));
-    % delta_time_pos(nan_position(1)) = delta_time(nan_position(1));
-    % delta_time_pos(nan_position(end)) = delta_time(nan_position(end));
+    
+    %     % (1) Plot delta time vs wind angle
+    %     plot_delta_time_with_wind(wind_angles, corner_study, delta_time);
     %
-    % delta_time_neg = delta_time;
-    % delta_time_neg(delta_time_pos >= 0) = NaN;
+    %     % (2) Plot telemetry comparison for the worst case
+    %     [~,i_worst] = max(delta_time);
+    %     plot_telemetry(calm_simulation, corner_study, i_worst, 'worst gust direction', 'Detailed analysis of the worst gust direction.','detail_worst_gust_direction');
     %
-    % plot(rad2deg(wind_angles), delta_time_pos,'Color','r','LineWidth',2)
-    % hold on
-    % plot(rad2deg(wind_angles), delta_time_neg,'Color','g','LineWidth',2)
-    % ax = h.CurrentAxes;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % xlim([0,360]);
-    % ax.XTick = 0:45:360;
-    % ax.XTickLabel = {'N','NE','E','SE','S','SW','W','NW','N'};
-    %
-    % ax.YTick = -0.8:0.2:0.6;
-    % ax.YTickLabel = cellfun(@(f)([num2str(str2num(f),'%.3f'),'s']), ax.YTickLabel,'UniformOutput',false);
-    % ax.Position(4) = ax.Position(3);
-    % grid on
-    % box on
-    % ax.FontSize=15;
-    % t = title('delta-time with respect to air in calm','Color',text_color,'FontSize',20);
-    % t.Position(2) = t.Position(2) + 0.05;
-    %
-    % a_faster = annotation('textbox',[0,0,0.2,0.1],'String','Faster','Color',text_color,'LineStyle','none','FontName',font_name,'FontSize',20,'Position',[0.386634844868736   0.278056951423786   0.200000000000001   0.100000000000000]);
-    % a_slower = annotation('textbox',[0,0.1,0.2,0.1],'String','Slower','Color',text_color,'LineStyle','none','FontName',font_name,'FontSize',20,'Position',[0.563245823389023   0.672864321608041   0.200000000000000   0.100000000000000]);
-    % xlabel('gust direction')
-    %
-    % [im,~,al] = imread('Simple_compass_rose.svg.png');
-    %
-    % ax_compass = axes('Position',[0.2,0.5,0.35,0.35]);
-    %
-    % h_im = imagesc((im));
-    % h_im.AlphaData = al;
-    % cmap = [1 1 1 %// light gray
-    %         0  0  0] %// white
-    % colormap(cmap)
-    % ax_compass.Visible = 'off';
-    % axis equal
-    %
-    % set(h, 'InvertHardcopy', 'off')
-    % print(h,'delta_time_wrt_no_gust','-dpng','-r300')
-    %
-    % % (2) Plot telemetry comparison for the worst case
-    % [~,i_worst] = max(delta_time);
-    %
-    % h = figure('Position',[458          97        1233         881]);
-    % h.Color = background_color;
-    %
-    % subplot(6,1,1)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),calm_simulation.corner_study.simulation_data.("chassis.velocity.x")*3.6,'LineWidth',2);
-    % hold on
-    % plot(corner_study.simulation_data{i_worst}.("road.arclength"),corner_study.simulation_data{i_worst}.("chassis.velocity.x")*3.6,'LineWidth',2);
-    % t=title('velocity profiles [km/h]','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.YTickMode = 'manual';
-    % ax.YTickLabel = {'100km/h','','200km/h','','300km/h'};
-    % ax.FontSize = 15;
-    % ax.Position(4) = 0.102;
-    % ylim([50,300])
-    % grid on
-    % legend({'air in calm','worst gust direction'},'location','southwest','TextColor',text_color)
-    %
-    % subplot(6,1,2)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),max(0,calm_simulation.corner_study.simulation_data.("chassis.throttle"))*100,'LineWidth',2);
-    % hold on
-    % plot(corner_study.simulation_data{i_worst}.("road.arclength"),max(0,corner_study.simulation_data{i_worst}.("chassis.throttle"))*100,'LineWidth',2);
-    % t=title('throttle','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    % ax.Position(4) = 0.102;;
-    % ax.YTickMode = 'manual';
-    % ax.YTickLabel = cellfun(@(f)([f,'%']),ax.YTickLabel,'UniformOutput',false);
-    % grid on
-    %
-    %
-    % subplot(6,1,3)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),corner_study.simulation_data{i_worst}.time - calm_simulation.corner_study.simulation_data.time,'Color',text_color,'LineWidth',2)
-    % t=title('delta-time','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % subplot(6,1,4)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(corner_study.simulation_data{i_worst}.("chassis.aerodynamics.lift") - calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.lift"))/(795*9.81),'Color',text_color,'LineWidth',2)
-    % t=title('delta-downforce [g]','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    % ylim([-0.6,0])
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % subplot(6,1,5)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(abs(corner_study.simulation_data{i_worst}.("chassis.aerodynamics.drag.x")) - abs(calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.drag.x")))/(795*9.81),'Color',text_color,'LineWidth',2)
-    % t=title('delta-drag [g]','Color',text_color);
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    %
-    % ylim([-0.15,0.0])
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % subplot(6,1,6)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(corner_study.simulation_data{i_worst}.("chassis.aerodynamics.drag.y") - calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.drag.y"))/(795*9.81),'Color',text_color,'LineWidth',2)
-    % t=title('delta-side-force [g]','Color',text_color);
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.FontSize = 15;
-    % ax.XTickLabel = cellfun(@(f)([f,'m']),ax.XTickLabel,'UniformOutput',false);
-    % ylim([-0.06,0.06])
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % annotation('textbox',[0,0.95,1.0,0.05],'String','Detailed analysis of the worst gust direction.','LineStyle','none','FontSize',20,'Color',text_color,'FontName',font_name,'HorizontalAlignment','center','VerticalAlignment','middle');
-    %
-    % set(h, 'InvertHardcopy', 'off')
-    % print(h,'detail_worst_gust_direction','-dpng','-r300')
-    %
-    %
-    % % (3) Plot telemetry comparison for the best case
-    [~,i_best] = min(delta_time);
-    %
-    % h = figure('Position',[458          97        1233         881]);
-    % h.Color = background_color;
-    %
-    % subplot(6,1,1)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),calm_simulation.corner_study.simulation_data.("chassis.velocity.x")*3.6,'LineWidth',2);
-    % hold on
-    % plot(corner_study.simulation_data{i_best}.("road.arclength"),corner_study.simulation_data{i_best}.("chassis.velocity.x")*3.6,'LineWidth',2);
-    % t=title('velocity profiles [km/h]','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.YTickMode = 'manual';
-    % ax.YTickLabel = {'100km/h','','200km/h','','300km/h'};
-    % ax.FontSize = 15;
-    % ax.Position(4) = 0.102;
-    % ylim([50,300])
-    % grid on
-    % legend({'air in calm','worst gust direction'},'location','southwest','TextColor',text_color)
-    %
-    % subplot(6,1,2)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),max(0,calm_simulation.corner_study.simulation_data.("chassis.throttle"))*100,'LineWidth',2);
-    % hold on
-    % plot(corner_study.simulation_data{i_best}.("road.arclength"),max(0,corner_study.simulation_data{i_best}.("chassis.throttle"))*100,'LineWidth',2);
-    % t=title('throttle','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    % ax.Position(4) = 0.102;;
-    % ax.YTickMode = 'manual';
-    % ax.YTickLabel = cellfun(@(f)([f,'%']),ax.YTickLabel,'UniformOutput',false);
-    % grid on
-    %
-    %
-    % subplot(6,1,3)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),corner_study.simulation_data{i_best}.time - calm_simulation.corner_study.simulation_data.time,'Color',text_color,'LineWidth',2)
-    % t=title('delta-time','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % subplot(6,1,4)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(corner_study.simulation_data{i_best}.("chassis.aerodynamics.lift") - calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.lift"))/(795*9.81),'Color',text_color,'LineWidth',2)
-    % t=title('delta-downforce [g]','Color',text_color)
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    % ylim([0,1.0])
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % subplot(6,1,5)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(abs(corner_study.simulation_data{i_best}.("chassis.aerodynamics.drag.x")) - abs(calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.drag.x")))/(795*9.81),'Color',text_color,'LineWidth',2)
-    % t=title('delta-drag [g]','Color',text_color);
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
-    % ax.FontSize = 15;
-    %
-    % ylim([0.0,0.3])
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % subplot(6,1,6)
-    % plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(corner_study.simulation_data{i_best}.("chassis.aerodynamics.drag.y") - calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.drag.y"))/(795*9.81),'Color',text_color,'LineWidth',2)
-    % t=title('delta-side-force [g]','Color',text_color);
-    % xlim([2300,2800])
-    % ax = gca;
-    % ax.Color = background_color;
-    % ax.XColor = text_color;
-    % ax.YColor = text_color;
-    % ax.FontSize = 15;
-    % ax.XTickLabel = cellfun(@(f)([f,'m']),ax.XTickLabel,'UniformOutput',false);
-    % ylim([-0.1,0.1])
-    % ax.Position(4) = 0.102;
-    % grid on
-    %
-    % annotation('textbox',[0,0.95,1.0,0.05],'String','Detailed analysis of the best gust direction.','LineStyle','none','FontSize',20,'Color',text_color,'FontName',font_name,'HorizontalAlignment','center','VerticalAlignment','middle');
-    %
-    % set(h, 'InvertHardcopy', 'off')
-    % print(h,'detail_best_gust_direction','-dpng','-r300')
-
-
-    % Write a video
+    %     % (3) Plot telemetry comparison for the best case
+    %     [~,i_best] = min(delta_time);
+    %     plot_telemetry(calm_simulation, corner_study, i_best, 'best gust direction', 'Detailed analysis of the best gust direction.','detail_best_gust_direction');
+    
+    
+    % (4) Write a video
     corner_study.simulation_data{i_best}.x_center = interp1(s(corner_study.i_start:corner_study.i_finish),x_center(corner_study.i_start:corner_study.i_finish),corner_study.s)';
     corner_study.simulation_data{i_best}.y_center = interp1(s(corner_study.i_start:corner_study.i_finish),y_center(corner_study.i_start:corner_study.i_finish),corner_study.s)';
     draw_frame(corner_study.simulation_data{i_best}, readstruct('neutral-car.xml'), s, x_left, x_right, y_left, y_right, x_center, y_center, theta, nl, nr, [s_wind_start,s_wind_end],[sin(wind_angles(i_best)),cos(wind_angles(i_best))], 100);
+    
+end
+
+
+function plot_delta_time_with_wind(wind_angles, corner_study, delta_time)
+global background_color text_color blue font_name
+
+h = figure('Position',[546   381   838   597]);
+h.Color = background_color;
+delta_time_pos = delta_time;
+delta_time_pos(delta_time_pos < 0) = NaN;
+nan_position = find(isnan(delta_time_pos));
+delta_time_pos(nan_position(1)) = delta_time(nan_position(1));
+delta_time_pos(nan_position(end)) = delta_time(nan_position(end));
+
+delta_time_neg = delta_time;
+delta_time_neg(delta_time_pos >= 0) = NaN;
+
+plot(rad2deg(wind_angles), delta_time_pos,'Color','r','LineWidth',2)
+hold on
+plot(rad2deg(wind_angles), delta_time_neg,'Color','g','LineWidth',2)
+ax = h.CurrentAxes;
+ax.Color = background_color;
+ax.XColor = text_color;
+ax.YColor = text_color;
+xlim([0,360]);
+ax.XTick = 0:45:360;
+ax.XTickLabel = {'N','NE','E','SE','S','SW','W','NW','N'};
+
+ax.YTick = -0.8:0.2:0.6;
+ax.YTickLabel = cellfun(@(f)([num2str(str2num(f),'%.3f'),'s']), ax.YTickLabel,'UniformOutput',false);
+ax.Position(4) = ax.Position(3);
+grid on
+box on
+ax.FontSize=15;
+t = title('delta-time with respect to air in calm','Color',text_color,'FontSize',20);
+t.Position(2) = t.Position(2) + 0.05;
+
+a_faster = annotation('textbox',[0,0,0.2,0.1],'String','Faster','Color',text_color,'LineStyle','none','FontName',font_name,'FontSize',20,'Position',[0.386634844868736   0.278056951423786   0.200000000000001   0.100000000000000]);
+a_slower = annotation('textbox',[0,0.1,0.2,0.1],'String','Slower','Color',text_color,'LineStyle','none','FontName',font_name,'FontSize',20,'Position',[0.563245823389023   0.672864321608041   0.200000000000000   0.100000000000000]);
+xlabel('gust direction')
+
+[im,~,al] = imread('Simple_compass_rose.svg.png');
+
+ax_compass = axes('Position',[0.2,0.5,0.35,0.35]);
+
+h_im = imagesc((im));
+h_im.AlphaData = al;
+cmap = [1 1 1 %// light gray
+    0  0  0] %// white
+colormap(cmap)
+ax_compass.Visible = 'off';
+axis equal
+
+set(h, 'InvertHardcopy', 'off')
+print(h,'delta_time_wrt_no_gust','-dpng','-r300')
 
 end
 
+function plot_telemetry(calm_simulation, corner_study, i_selected, legend_name, figure_title, file_name)
+global background_color text_color blue font_name
+
+h = figure('Position',[458          97        1233         881]);
+h.Color = background_color;
+
+subplot(6,1,1)
+plot(calm_simulation.corner_study.simulation_data.("road.arclength"),calm_simulation.corner_study.simulation_data.("chassis.velocity.x")*3.6,'LineWidth',2);
+hold on
+plot(corner_study.simulation_data{i_selected}.("road.arclength"),corner_study.simulation_data{i_selected}.("chassis.velocity.x")*3.6,'LineWidth',2);
+t=title('velocity profiles [km/h]','Color',text_color)
+xlim([2300,2800])
+ax = gca;
+ax.Color = background_color;
+ax.XColor = text_color;
+ax.YColor = text_color;
+ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
+ax.YTickMode = 'manual';
+ax.YTickLabel = {'100km/h','','200km/h','','300km/h'};
+ax.FontSize = 15;
+ax.Position(4) = 0.102;
+ylim([50,300])
+grid on
+legend({'air in calm',legend_name},'location','southwest','TextColor',text_color)
+
+subplot(6,1,2)
+plot(calm_simulation.corner_study.simulation_data.("road.arclength"),max(0,calm_simulation.corner_study.simulation_data.("chassis.throttle"))*100,'LineWidth',2);
+hold on
+plot(corner_study.simulation_data{i_selected}.("road.arclength"),max(0,corner_study.simulation_data{i_selected}.("chassis.throttle"))*100,'LineWidth',2);
+t=title('throttle','Color',text_color)
+xlim([2300,2800])
+ax = gca;
+ax.Color = background_color;
+ax.XColor = text_color;
+ax.YColor = text_color;
+ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
+ax.FontSize = 15;
+ax.Position(4) = 0.102;;
+ax.YTickMode = 'manual';
+ax.YTickLabel = cellfun(@(f)([f,'%']),ax.YTickLabel,'UniformOutput',false);
+grid on
+
+
+subplot(6,1,3)
+plot(calm_simulation.corner_study.simulation_data.("road.arclength"),corner_study.simulation_data{i_selected}.time - calm_simulation.corner_study.simulation_data.time,'Color',text_color,'LineWidth',2)
+t=title('delta-time','Color',text_color)
+xlim([2300,2800])
+ax = gca;
+ax.Color = background_color;
+ax.XColor = text_color;
+ax.YColor = text_color;
+ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
+ax.FontSize = 15;
+ax.Position(4) = 0.102;
+grid on
+
+subplot(6,1,4)
+plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(corner_study.simulation_data{i_selected}.("chassis.aerodynamics.lift") - calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.lift"))/(795*9.81),'Color',text_color,'LineWidth',2)
+t=title('delta-downforce [g]','Color',text_color)
+xlim([2300,2800])
+ax = gca;
+ax.Color = background_color;
+ax.XColor = text_color;
+ax.YColor = text_color;
+ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
+ax.FontSize = 15;
+ylim([-0.6,0])
+ax.Position(4) = 0.102;
+grid on
+
+subplot(6,1,5)
+plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(abs(corner_study.simulation_data{i_selected}.("chassis.aerodynamics.drag.x")) - abs(calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.drag.x")))/(795*9.81),'Color',text_color,'LineWidth',2)
+t=title('delta-drag [g]','Color',text_color);
+xlim([2300,2800])
+ax = gca;
+ax.Color = background_color;
+ax.XColor = text_color;
+ax.YColor = text_color;
+ax.XTickLabel = cellfun(@(f)(''),ax.XTickLabel,'UniformOutput',false);
+ax.FontSize = 15;
+
+ylim([-0.15,0.0])
+ax.Position(4) = 0.102;
+grid on
+
+subplot(6,1,6)
+plot(calm_simulation.corner_study.simulation_data.("road.arclength"),(corner_study.simulation_data{i_selected}.("chassis.aerodynamics.drag.y") - calm_simulation.corner_study.simulation_data.("chassis.aerodynamics.drag.y"))/(795*9.81),'Color',text_color,'LineWidth',2)
+t=title('delta-side-force [g]','Color',text_color);
+xlim([2300,2800])
+ax = gca;
+ax.Color = background_color;
+ax.XColor = text_color;
+ax.YColor = text_color;
+ax.FontSize = 15;
+ax.XTickLabel = cellfun(@(f)([f,'m']),ax.XTickLabel,'UniformOutput',false);
+ylim([-0.06,0.06])
+ax.Position(4) = 0.102;
+grid on
+
+annotation('textbox',[0,0.95,1.0,0.05],'String',figure_title,'LineStyle','none','FontSize',20,'Color',text_color,'FontName',font_name,'HorizontalAlignment','center','VerticalAlignment','middle');
+
+set(h, 'InvertHardcopy', 'off')
+print(h,file_name,'-dpng','-r300')
+
+end
 
 function run_data = get_run_data(prefix, n_points)
 % Generate a table with all the outputs available from the model
@@ -552,6 +467,9 @@ understeer_ind = rad2deg(simulation_data.("chassis.understeer_oversteer_indicato
 Fz_max = -min([simulation_data.("chassis.Fz_fl");simulation_data.("chassis.Fz_fr");simulation_data.("chassis.Fz_rl");simulation_data.("chassis.Fz_rr")]);
 plot_tires(simulation_data,i_frame,vehicle_data,Fz_max, understeer_ind);
 
+% (?) Aerodynamic coefficients
+plot_aerodynamic_bars(simulation_data,i_frame,vehicle_data);
+
 % (n.4) Track map
 %plot_track_map(x_center,y_center,x(i_frame),-y(i_frame));
 
@@ -562,7 +480,6 @@ ax_dashboard.XLim = [-3.3,  8.1];
 ax_dashboard.YLim = [ax_dashboard.YLim(1)-ax_dashboard.YLim(2)+1.2,  1.2];
 ax_dashboard.Visible = 'off';
 end
-
 
 function plot_throttle_brake(throttle_raw,delta_raw,brake_bias_raw)
 
@@ -828,4 +745,39 @@ col = 6*[linspace(0,Fz/Fz_max,100);linspace(0,Fz/Fz_max,100)];
 surface(x_surf,y_surf,zeros(2,100),col, 'facecol','interp',...
     'edgecol','no',...
     'linew',4);
+end
+
+function plot_aerodynamic_bars(simulation_data,i,vehicle_data)
+global background_color text_color blue font_name
+
+max_lift = 2.4e4;
+u_body = [simulation_data.("chassis.velocity.x")(i),simulation_data.("chassis.velocity.y")(i)];
+lift_without_wind = 0.5*vehicle_data.chassis.aerodynamics.rho*simulation_data.("chassis.velocity.x")(i)*simulation_data.("chassis.velocity.x")(i)*vehicle_data.chassis.aerodynamics.area*vehicle_data.chassis.aerodynamics.cl;
+drag_without_wind = 0.5*vehicle_data.chassis.aerodynamics.rho*norm(u_body)*u_body(1)*vehicle_data.chassis.aerodynamics.area*vehicle_data.chassis.aerodynamics.cd;
+patch([1.2,1.2,3.2,3.2,1.2],[-0.1,1.1,1.1,-0.1,-0.1],[1,1,1])
+plot([1.2,1.2,3.2,3.2,1.2],[-0.1,1.1,1.1,-0.1,-0.1],'-k','LineWidth',3)
+
+text(1.4+0.1,0.1,'dwf','horizontalAlignment','center','verticalAlignment','middle','FontSize',15);
+plot(1.4+[0,0,0.2,0.2,0],[0.2,1,1,0.2,0.2],'-k');
+patch(1.4+[0,0,0.2,0.2,0],[0.2,0.2+0.8*simulation_data.("chassis.aerodynamics.lift")(i)/max_lift,0.2+0.8*simulation_data.("chassis.aerodynamics.lift")(i)/max_lift,0.2,0.2],[1,0,0]);
+plot(1.4+[0,0.04],0.2+0.8*[0.25,0.25],'-k')
+plot(1.4+[0,0.04],0.2+0.8*[0.5,0.5],'-k')
+plot(1.4+[0,0.04],0.2+0.8*[0.75,0.75],'-k')
+plot(1.4+[0.16,0.2],0.2+0.8*[0.25,0.25],'-k')
+plot(1.4+[0.16,0.2],0.2+0.8*[0.5,0.5],'-k')
+plot(1.4+[0.16,0.2],0.2+0.8*[0.75,0.75],'-k')
+plot(1.4+[0,0.2],0.2+0.8*lift_without_wind/max_lift + [0,0],'Color',blue,'LineWidth',2);
+
+text(1.75+0.1,0.1,'drag','horizontalAlignment','center','verticalAlignment','middle','FontSize',15);
+plot(1.75+[0,0,0.2,0.2,0],[0.2,1,1,0.2,0.2],'-k');
+patch(1.75+[0,0,0.2,0.2,0],[0.2,0.2-0.8*simulation_data.("chassis.aerodynamics.drag.x")(i)/max_lift,0.2-0.8*simulation_data.("chassis.aerodynamics.drag.x")(i)/max_lift,0.2,0.2],[1,0,0]);
+plot(1.75+[0,0.04],0.2+0.8*[0.25,0.25],'-k')
+plot(1.75+[0,0.04],0.2+0.8*[0.5,0.5],'-k')
+plot(1.75+[0,0.04],0.2+0.8*[0.75,0.75],'-k')
+plot(1.75+[0.16,0.2],0.2+0.8*[0.25,0.25],'-k')
+plot(1.75+[0.16,0.2],0.2+0.8*[0.5,0.5],'-k')
+plot(1.75+[0.16,0.2],0.2+0.8*[0.75,0.75],'-k')
+plot(1.75+[0,0.2],0.2+0.8*drag_without_wind/max_lift + [0,0],'Color',blue,'LineWidth',2);
+
+
 end
